@@ -47,7 +47,7 @@ namespace Column_Sort
                 robapp = new RobotApplication();
 
 
-                Generate();
+                
             }
             catch (Exception E)
             {
