@@ -8,11 +8,13 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using RobotOM;
-using Microsoft.Office.Interop.Excel;
-using Excel = Microsoft.Office.Interop.Excel;
+//using Microsoft.Office.Interop.Excel;
+//using Excel = Microsoft.Office.Interop.Excel;
 using Microsoft.Win32.SafeHandles;
 using System.Runtime.InteropServices;
 using System.Windows.Forms.DataVisualization.Charting;
+using static Tensorflow.Binding;
+using System.Numerics;
 
 namespace Column_Sort
 {
@@ -21,7 +23,7 @@ namespace Column_Sort
     {
         public RobotApplication robapp;
         private bool[,] panels;
-        private int sizeX = 9 , sizeY = 9;
+        private int sizeX = 8 , sizeY = 8;
         public Form1()
         {
             InitializeComponent();
@@ -45,9 +47,14 @@ namespace Column_Sort
             try
             {
                 robapp = new RobotApplication();
+                robapp.Interactive = 0;
+                robapp.UserControl = false;
+                DeleteAll();
+                GenerateLimitedNumber(9);
+                UpdateMeshesForCorrectCalculationSettings();
+                Calculate();
 
-
-                
+                GetAndDisplayNodeLocationsOnGraph();
             }
             catch (Exception E)
             {
@@ -55,6 +62,8 @@ namespace Column_Sort
             }
             finally
             {
+                robapp.Interactive = 1;
+                robapp.UserControl = true;
                 robapp = null;
             }
 
@@ -67,20 +76,104 @@ namespace Column_Sort
             Random rnd = new Random();
             int i = rnd.Next(0, sizeX);
             int j = rnd.Next(0, sizeY);
-            int[] directionsX = { 0, 1, 0, -1 };
-            int[] directionsY = { 1, 0, -1, 0 };
+            int[] directionsX = { 0, 2, 0, -2 };
+            int[] directionsY = { 2, 0, -2, 0 };
 
-            while (ContainsCoordinates(j, i) && panels[j, i] == false)
+            while (ContainsCoordinates(j, i))
             {
-                CreatePanelAtPoint(j, i);
-                panels[j, i] = true;
-                textBox1.AppendText($"{j},{i} created {Environment.NewLine}");
+                if (panels[j, i] == false)
+                {
+                    CreatePanelAtPoint(j, i);
+                    panels[j, i] = true;
+                    textBox1.AppendText($"{j},{i} created {Environment.NewLine}");
+                }
                 
                 int rand = rnd.Next(0, 3);
                 i += directionsX[rand];
                 j += directionsY[rand];
             }
             textBox1.AppendText($"Ended at {j},{i} {Environment.NewLine}");
+        }
+
+        public void GenerateLimitedNumber(int num)
+        {
+            panels = new bool[sizeX, sizeY];
+
+            Random rnd = new Random();
+            int i = rnd.Next(0, sizeX);
+            int j = rnd.Next(0, sizeY);
+            int[] directionsX = { 0, 2, 0, -2 };
+            int[] directionsY = { 2, 0, -2, 0 };
+
+            Vector2 coords = new Vector2(j, i);
+
+            while (num > 0)
+            {
+                textBox1.AppendText($"{num} trying {j},{i} {Environment.NewLine}");
+
+                if (panels[j, i] == false)
+                {
+                   
+                    for (int m = 0; m < 2; m++)
+                    {
+                        for (int l = 0; l < 2; l++)
+                        {
+                            CreatePanelAtPoint(j+m, i+l);
+                        }
+                    }
+                    panels[j, i] = true;
+                    textBox1.AppendText($"{j},{i} created {Environment.NewLine}");
+                    num -= 1;
+                }
+
+                int rand = rnd.Next(0, 3);
+                i += directionsX[rand];
+                j += directionsY[rand];
+
+                if (ContainsCoordinates(j, i))
+                {
+                    coords = new Vector2(j, i);
+                }
+                else
+                {
+                    int k = 3;
+                    while (!ContainsCoordinates(j, i) && k >= 0)
+                    {
+                        textBox1.AppendText($"k is:{k}{Environment.NewLine}");
+
+                        j = (int)coords.X;
+                        i = (int)coords.Y;
+
+                        i += directionsX[k];
+                        j += directionsY[k];
+                        k -= 1;
+                    }
+
+                    if(k < 0 && !ContainsCoordinates(j, i)){
+                        return;
+                    }
+                }
+
+            }
+
+            textBox1.AppendText($"Ended at {j},{i} {Environment.NewLine}");
+        }
+
+        void Calculate()
+        {
+            IRobotStructure robotStructure = robapp.Project.Structure;
+            IRDimServer rDimServer;
+            RDimStream rDimStream;
+            IRDimCalcEngine rDimCalcEngine;
+
+            rDimServer = (IRDimServer)robapp.Kernel.GetExtension("RDimServer");
+            rDimStream = rDimServer.Connection.GetStream();
+            rDimServer.Mode = IRDimServerMode.I_DSM_STEEL;
+            rDimCalcEngine = rDimServer.CalculEngine;
+
+            RobotCalcEngine calcEngine = robapp.Project.CalcEngine;
+            calcEngine.Calculate();
+            rDimCalcEngine.Solve(null);
         }
 
         public bool ContainsCoordinates(float x, float y)
@@ -120,7 +213,7 @@ namespace Column_Sort
             int totalObjects = robapp.Project.Structure.Objects.GetAll().Count + 1;
             robapp.Project.Structure.Objects.CreateOnFiniteElems(totalFE.ToString(), totalObjects);
             IRobotObjObject panel = robapp.Project.Structure.Objects.Get(totalObjects) as IRobotObjObject;
-            panel.SetLabel(IRobotLabelType.I_LT_PANEL_THICKNESS, "TH30_CONCR");
+            panel.SetLabel(IRobotLabelType.I_LT_PANEL_THICKNESS, "TH12_CONCR");
             panel.SetLabel(IRobotLabelType.I_LT_PANEL_CALC_MODEL, "Shell");
         }
 
@@ -177,32 +270,50 @@ namespace Column_Sort
 
         }
 
+        void DeleteAll()
+        {
+            RobotSelection robotSelection = robapp.Project.Structure.Selections.Create(IRobotObjectType.I_OT_PANEL);
+            robotSelection.FromText("all");
+            robapp.Project.Structure.Objects.DeleteMany(robotSelection);
+        }
+
         public void UpdateMeshesForCorrectCalculationSettings()
         {
-            RobotApplication robotApplication = new RobotApplication();
+
             try
             {
-                RobotProjectPreferences ProjectPrefs = robotApplication.Project.Preferences;
-                RobotMeshParams MeshParams = robotApplication.Project.Preferences.MeshParams;
+                RobotProjectPreferences ProjectPrefs = robapp.Project.Preferences;
+                RobotMeshParams MeshParams = robapp.Project.Preferences.MeshParams;
                 MeshParams.SurfaceParams.Method.Method = IRobotMeshMethodType.I_MMT_COONS;
+                MeshParams.SurfaceParams.Method.ForcingRatio = IRobotMeshForcingRatio.I_MFR_FORCED;
                 MeshParams.SurfaceParams.Generation.Type = IRobotMeshGenerationType.I_MGT_ELEMENT_SIZE;
                 MeshParams.SurfaceParams.Generation.ElementSize = 1;
                 MeshParams.SurfaceParams.Coons.PanelDivisionType = IRobotMeshPanelDivType.I_MPDT_SQUARE_IN_RECT;
                 MeshParams.SurfaceParams.Coons.ForcingRatio = IRobotMeshForcingRatio.I_MFR_FORCED;
                 MeshParams.SurfaceParams.FiniteElems.ForcingRatio = IRobotMeshForcingRatio.I_MFR_FORCED;
 
-                RobotSelection robotSelection = robotApplication.Project.Structure.Selections.Create(IRobotObjectType.I_OT_PANEL);
+                RobotSelection robotSelection = robapp.Project.Structure.Selections.Create(IRobotObjectType.I_OT_PANEL);
                 robotSelection.FromText("all");
 
-                RobotObjObjectCollection panelCol = robotApplication.Project.Structure.Objects.GetMany(robotSelection) as RobotObjObjectCollection;
+                RobotObjObjectCollection panelCol = robapp.Project.Structure.Objects.GetMany(robotSelection) as RobotObjObjectCollection;
 
                 for (int i = 1; i <= panelCol.Count; i++)
                 {
                     RobotObjObject panel = panelCol.Get(i);
+                    textBox1.AppendText($"{panel.Number.ToString()}{Environment.NewLine}");
                     panel.Main.Attribs.Meshed = 1;
+                    panel.Mesh.Params.MeshType = IRobotMeshType.I_MT_USER;
+                    panel.Mesh.Params.SurfaceParams.Method.Method = IRobotMeshMethodType.I_MMT_COONS;
+                    panel.Mesh.Params.SurfaceParams.Method.ForcingRatio = IRobotMeshForcingRatio.I_MFR_FORCED;
+                    panel.Mesh.Params.SurfaceParams.Generation.Type = IRobotMeshGenerationType.I_MGT_ELEMENT_SIZE;
+                    panel.Mesh.Params.SurfaceParams.Generation.ElementSize = 1;
+                    panel.Mesh.Params.SurfaceParams.Coons.PanelDivisionType = IRobotMeshPanelDivType.I_MPDT_SQUARE_IN_RECT;
+                    panel.Mesh.Params.SurfaceParams.Coons.ForcingRatio = IRobotMeshForcingRatio.I_MFR_FORCED;
+                    panel.Mesh.Params.SurfaceParams.FiniteElems.ForcingRatio = IRobotMeshForcingRatio.I_MFR_FORCED;
                     panel.Update();
                     panel.Mesh.Generate();
                 }
+
             }
             catch (Exception e)
             {
@@ -210,7 +321,7 @@ namespace Column_Sort
             }
             finally
             {
-                robotApplication = null;
+
             }
 
         }
@@ -238,8 +349,9 @@ namespace Column_Sort
             }
             return 0;
         }
-
         #region old code
+        /*
+       
         public void GetCases()
         {
 
@@ -699,6 +811,7 @@ namespace Column_Sort
             textBox1.Text = $"\r\nSelected Load Case: {listBox1.SelectedItem.ToString()} \r\nSelect some columns in robot and press 'Start'.";
 
         }
+        */
     }
     #endregion
 
