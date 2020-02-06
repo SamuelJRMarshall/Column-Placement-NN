@@ -24,6 +24,7 @@ namespace Column_Sort
         public RobotApplication robapp;
         private bool[,] panels;
         private int sizeX = 8 , sizeY = 8;
+        private int numOfColumns;
         public Form1()
         {
             InitializeComponent();
@@ -50,18 +51,20 @@ namespace Column_Sort
                 robapp.Interactive = 0;
                 robapp.UserControl = false;
 
-                
-                //DeleteAll();
-                GenerateLimitedNumber(15);
-                //UpdateMeshesForCorrectCalculationSettings();
-                //Calculate();
-                //CreateColumnSize();
-                //GetAndDisplayNodeLocationsOnGraph();
-                CreateColumn(4, 4);
+
+                DeleteAll();
+                GenerateNumofFloorTiles(15);
+                UpdateMeshesForCorrectCalculationSettings();
+                Calculate();
+                CreateColumnSize();
+                GetAndDisplayNodeLocationsOnGraph();
+                //CreateColumn(4, 4);
+                Calculate();
+                GetResults();
             }
             catch (Exception E)
             {
-                textBox1.AppendText(E.ToString());
+                textBox1.Text = (E.ToString());
             }
             finally
             {
@@ -72,6 +75,51 @@ namespace Column_Sort
 
         }
 
+        void GetResults()
+        {
+            var allNodes = robapp.Project.Structure.Nodes.GetAll();
+            double total = 0;
+            textBox1.AppendText(allNodes.Count + Environment.NewLine);
+            for (int i = 1; i <= allNodes.Count; i++)
+            {
+                total += robapp.Project.Structure.Results.Nodes.Displacements.Value(i, 1).UZ;
+                
+            }
+            total *= 1000;
+            textBox1.AppendText(total.ToString() + Environment.NewLine + numOfColumns.ToString());
+
+
+        }
+
+        /*
+          var allNodes = robapp.Project.Structure.Nodes.GetAll();
+            double total = 0;
+            textBox1.AppendText(allNodes.Count + Environment.NewLine);
+
+
+            RobotSelection nodeSel = robapp.Project.Structure.Selections.Get(IRobotObjectType.I_OT_NODE);
+            RobotSelection casSel = robapp.Project.Structure.Selections.Get(IRobotObjectType.I_OT_CASE);
+            nodeSel.FromText("all");
+            casSel.FromText("all");
+
+            RobotExtremeParams robotExtremeParams = robapp.CmpntFactory.Create(IRobotComponentType.I_CT_EXTREME_PARAMS);
+            robapp.Project.Structure.Selections.Get(IRobotObjectType.I_OT_CASE).FromText("DL1");
+            robotExtremeParams.Selection.Set(IRobotObjectType.I_OT_CASE, casSel);
+            IRobotBarForceServer robotBarResultServer = robapp.Project.Structure.Results.Bars.Forces;
+
+            for (int i = 1; i <= allNodes.Count; i++)
+            {
+                total += robapp.Project.Structure.Results.Nodes.Displacements.Value(i, 1).UZ;
+
+                IRobotDataObject node = allNodes.Get(i);
+
+                robapp.Project.Structure.Selections.Get(IRobotObjectType.I_OT_NODE).FromText(node.Number.ToString());
+                robotExtremeParams.Selection.Set(IRobotObjectType.I_OT_NODE, nodeSel);
+                robotExtremeParams.ValueType = IRobotExtremeValueType.I_EVT_DEFLECTION_UZ;
+                total = robapp.Project.Structure.Results.Extremes.MinValue(robotExtremeParams).Value;
+                textBox1.AppendText(total.ToString("F5") + Environment.NewLine); 
+            }
+            */
         public void Generate()
         {
             panels = new bool[sizeX, sizeY];
@@ -98,25 +146,32 @@ namespace Column_Sort
             //textBox1.AppendText($"Ended at {j},{i} {Environment.NewLine}");
         }
 
-        public void GenerateLimitedNumber(int num)
+        public void GenerateNumofFloorTiles(int num)
         {
+            //Make an array to store created panels
             panels = new bool[sizeX, sizeY];
 
+            //Create a random starting point on the grid
             Random rnd = new Random();
             int i = rnd.Next(0, sizeX);
             int j = rnd.Next(0, sizeY);
+            
+            //only movement in the cardinal directions is allowed
             int[] directionsX = { 0, 2, 0, -2 };
             int[] directionsY = { 2, 0, -2, 0 };
 
+            //record the current coordinates as they are valid
             Vector2 coords = new Vector2(j, i);
 
             while (num > 0)
             {
                 //textBox1.AppendText($"{num} trying {j},{i} {Environment.NewLine}");
 
+                //If there is nothing in this location create a panel
                 if (panels[j, i] == false)
                 {
                    
+                    //Create a 2x2m panel at the selected location
                     for (int m = 0; m < 2; m++)
                     {
                         for (int l = 0; l < 2; l++)
@@ -124,26 +179,33 @@ namespace Column_Sort
                             CreatePanelAtPoint(j+m, i+l);
                         }
                     }
+                    //Add the panel to the list
                     panels[j, i] = true;
+
                     //textBox1.AppendText($"{j},{i} created {Environment.NewLine}");
+                    
+                    //Repeat unitl num has been reached
                     num -= 1;
                 }
 
+                //Move onto the next location
                 int rand = rnd.Next(0, 3);
                 i += directionsX[rand];
                 j += directionsY[rand];
 
+                //Check if they are valid
                 if (ContainsCoordinates(j, i))
                 {
                     coords = new Vector2(j, i);
                 }
                 else
                 {
+                    //if the coords arent valid move around until they are
                     int k = 3;
                     while (!ContainsCoordinates(j, i) && k >= 0)
                     {
                         //textBox1.AppendText($"k is:{k}{Environment.NewLine}");
-
+                        //randomise the coordinates based on the last successful coordinate
                         j = (int)coords.X;
                         i = (int)coords.Y;
 
@@ -152,6 +214,7 @@ namespace Column_Sort
                         k -= 1;
                     }
 
+                    //If a valid coordinate cannot be found stop running
                     if(k < 0 && !ContainsCoordinates(j, i)){
                         return;
                     }
@@ -216,8 +279,8 @@ namespace Column_Sort
             int totalObjects = robapp.Project.Structure.Objects.GetAll().Count + 1;
             robapp.Project.Structure.Objects.CreateOnFiniteElems(totalFE.ToString(), totalObjects);
             IRobotObjObject panel = robapp.Project.Structure.Objects.Get(totalObjects) as IRobotObjObject;
-            panel.SetLabel(IRobotLabelType.I_LT_PANEL_THICKNESS, "TH30_CONCR");
-            panel.SetLabel(IRobotLabelType.I_LT_MATERIAL, "CONCR");
+            panel.SetLabel(IRobotLabelType.I_LT_PANEL_THICKNESS, "TH10");
+            panel.SetLabel(IRobotLabelType.I_LT_MATERIAL, "C10");
             panel.SetLabel(IRobotLabelType.I_LT_PANEL_CALC_MODEL, "Shell");
         }
 
@@ -405,6 +468,9 @@ namespace Column_Sort
             {
                 CreateColumn(item.X, item.Y);
             }
+            numOfColumns = coords.Count;
+
+
         }
 
         void CreateColumn(double x, double y)
@@ -437,7 +503,7 @@ namespace Column_Sort
             support.SetLabel(IRobotLabelType.I_LT_SUPPORT, "Base");
 
 
-            var robotBarServer = robapp.Project.Structure.Bars.GetAll();
+            var robotBarServer = robapp.Project.Structure.Objects.GetAll();
             int totalBars = robotBarServer.Count + 1;
             robapp.Project.Structure.Bars.Create(totalBars, topnode, bottomnode);
             robapp.Project.Structure.Bars.Get(totalBars).SetLabel(IRobotLabelType.I_LT_BAR_SECTION, "col1");
@@ -488,6 +554,10 @@ namespace Column_Sort
             return robotStructureCache.EnsureNodeExist(x, y, 0);
         }
 
+        private void chart1_Click(object sender, EventArgs e)
+        {
+
+        }
 
         public int DoesNodeExistAtXY(double x, double y)
         {
@@ -975,6 +1045,6 @@ namespace Column_Sort
         }
         */
     }
-    #endregion
+#endregion
 
 }

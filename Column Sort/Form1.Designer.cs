@@ -67,7 +67,6 @@
             this.listBox1.ScrollAlwaysVisible = true;
             this.listBox1.Size = new System.Drawing.Size(194, 30);
             this.listBox1.TabIndex = 3;
-            //this.listBox1.SelectedIndexChanged += new System.EventHandler(this.listBox1_SelectedIndexChanged);
             // 
             // chart1
             // 
@@ -84,6 +83,7 @@
             this.chart1.Size = new System.Drawing.Size(532, 383);
             this.chart1.TabIndex = 4;
             this.chart1.Text = "chart1";
+            this.chart1.Click += new System.EventHandler(this.chart1_Click);
             // 
             // Form1
             // 
