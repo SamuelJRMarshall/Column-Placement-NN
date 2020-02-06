@@ -49,12 +49,15 @@ namespace Column_Sort
                 robapp = new RobotApplication();
                 robapp.Interactive = 0;
                 robapp.UserControl = false;
-                DeleteAll();
-                GenerateLimitedNumber(9);
-                UpdateMeshesForCorrectCalculationSettings();
-                Calculate();
 
-                GetAndDisplayNodeLocationsOnGraph();
+                
+                //DeleteAll();
+                GenerateLimitedNumber(15);
+                //UpdateMeshesForCorrectCalculationSettings();
+                //Calculate();
+                //CreateColumnSize();
+                //GetAndDisplayNodeLocationsOnGraph();
+                CreateColumn(4, 4);
             }
             catch (Exception E)
             {
@@ -85,14 +88,14 @@ namespace Column_Sort
                 {
                     CreatePanelAtPoint(j, i);
                     panels[j, i] = true;
-                    textBox1.AppendText($"{j},{i} created {Environment.NewLine}");
+                    //textBox1.AppendText($"{j},{i} created {Environment.NewLine}");
                 }
                 
                 int rand = rnd.Next(0, 3);
                 i += directionsX[rand];
                 j += directionsY[rand];
             }
-            textBox1.AppendText($"Ended at {j},{i} {Environment.NewLine}");
+            //textBox1.AppendText($"Ended at {j},{i} {Environment.NewLine}");
         }
 
         public void GenerateLimitedNumber(int num)
@@ -109,7 +112,7 @@ namespace Column_Sort
 
             while (num > 0)
             {
-                textBox1.AppendText($"{num} trying {j},{i} {Environment.NewLine}");
+                //textBox1.AppendText($"{num} trying {j},{i} {Environment.NewLine}");
 
                 if (panels[j, i] == false)
                 {
@@ -122,7 +125,7 @@ namespace Column_Sort
                         }
                     }
                     panels[j, i] = true;
-                    textBox1.AppendText($"{j},{i} created {Environment.NewLine}");
+                    //textBox1.AppendText($"{j},{i} created {Environment.NewLine}");
                     num -= 1;
                 }
 
@@ -139,7 +142,7 @@ namespace Column_Sort
                     int k = 3;
                     while (!ContainsCoordinates(j, i) && k >= 0)
                     {
-                        textBox1.AppendText($"k is:{k}{Environment.NewLine}");
+                        //textBox1.AppendText($"k is:{k}{Environment.NewLine}");
 
                         j = (int)coords.X;
                         i = (int)coords.Y;
@@ -156,7 +159,7 @@ namespace Column_Sort
 
             }
 
-            textBox1.AppendText($"Ended at {j},{i} {Environment.NewLine}");
+            //textBox1.AppendText($"Ended at {j},{i} {Environment.NewLine}");
         }
 
         void Calculate()
@@ -213,7 +216,8 @@ namespace Column_Sort
             int totalObjects = robapp.Project.Structure.Objects.GetAll().Count + 1;
             robapp.Project.Structure.Objects.CreateOnFiniteElems(totalFE.ToString(), totalObjects);
             IRobotObjObject panel = robapp.Project.Structure.Objects.Get(totalObjects) as IRobotObjObject;
-            panel.SetLabel(IRobotLabelType.I_LT_PANEL_THICKNESS, "TH12_CONCR");
+            panel.SetLabel(IRobotLabelType.I_LT_PANEL_THICKNESS, "TH30_CONCR");
+            panel.SetLabel(IRobotLabelType.I_LT_MATERIAL, "CONCR");
             panel.SetLabel(IRobotLabelType.I_LT_PANEL_CALC_MODEL, "Shell");
         }
 
@@ -233,31 +237,31 @@ namespace Column_Sort
             this.chart1.Series.Add(series1);
             try
             {
-                textBox1.AppendText("Method Running" + Environment.NewLine);
-                RobotStructureCache robotStructureCache = robotApplication.Project.Structure.CreateCache();
-                IRobotCollection robotNodeCollection = robotApplication.Project.Structure.Nodes.GetAll();
+                //textBox1.AppendText("Method Running" + Environment.NewLine);
+                
 
-                int[] nodes = new int[100];
+                double[] nodes = new double[100];
                 int count = 0;
 
                 for (float i = 0; i < 10; i++)
                 {
                     for (float j = 0; j < 10; j++)
                     {
-                        nodes[count] = DoesNodeExistAtXY(j, i, robotNodeCollection.Count, robotStructureCache);
+
+                        nodes[count] = DoesNodeExistAtXY(j, i);
                         bool nodeReal = nodes[count] != 0;
                         if (nodeReal)
                         {
                             series1.Points.AddXY(j, i);
                         }
-                        textBox1.AppendText($"{j},{i} node is {nodeReal.ToString()} {Environment.NewLine}");
+                        //textBox1.AppendText($"{j},{i} node is {nodeReal.ToString()} {Environment.NewLine}");
                         count++;
 
                     }
                 }
                 chart1.Invalidate();
 
-
+                ConstructNN(nodes);
             }
             catch (Exception e)
             {
@@ -300,7 +304,7 @@ namespace Column_Sort
                 for (int i = 1; i <= panelCol.Count; i++)
                 {
                     RobotObjObject panel = panelCol.Get(i);
-                    textBox1.AppendText($"{panel.Number.ToString()}{Environment.NewLine}");
+                    //textBox1.AppendText($"{panel.Number.ToString()}{Environment.NewLine}");
                     panel.Main.Attribs.Meshed = 1;
                     panel.Mesh.Params.MeshType = IRobotMeshType.I_MT_USER;
                     panel.Mesh.Params.SurfaceParams.Method.Method = IRobotMeshMethodType.I_MMT_COONS;
@@ -326,10 +330,168 @@ namespace Column_Sort
 
         }
 
-        
-
-        public int DoesNodeExistAtXY(float x, float y, int totalNodes, RobotStructureCache robotStructureCache)
+        void ConstructNN(double[] inputs)
         {
+            Random rnd = new Random();
+            double[,,] weights = new double[8,100,100];
+            double[,] bias = new double[8, 100];
+            double[,,] values = new double[8, 100, 100];
+            double[,] totals = new double[8, 100];
+            double val = 0;
+
+            for (int i = 0; i < 8; i++)
+            {
+                for (int j = 0; j < 100; j++)
+                {
+                    for (int k = 0; k < 100; k++)
+                    {
+                        weights[i,j,k] = ((rnd.NextDouble() * 2.0) - 1.0) * 0.00001;
+
+                    }
+                    //textBox1.AppendText($"weights:{i}{j}{1} is {weights[i, j, 1]}{Environment.NewLine}");
+
+                    bias[i,j] = (rnd.NextDouble() * 2.0) - 1.0;
+                    //textBox1.AppendText($"bias:{i}{j} is {bias[i, j]}{Environment.NewLine}");
+
+                }
+            }
+
+
+            for (int i = 0; i < 8; i++)
+            {
+                for (int j = 0; j < 100; j++)
+                {
+                    for (int k = 0; k < 100; k++)
+                    {
+                        values[i,j,k] = inputs[k] * weights[i, j, k];
+                        val += values[i, j, k];
+                    }
+                    //textBox1.AppendText($"value:{i}{j}{1} is {values[i, j, 1]}{Environment.NewLine}");
+
+                    val += bias[i, j];
+                    totals[i, j] = val;
+                    //textBox1.AppendText($"total:{i}{j} is {totals[i, j]}{Environment.NewLine}");
+                    inputs[j] = totals[i, j];
+                    val = 0;
+                }
+            }
+
+            var series2 = new System.Windows.Forms.DataVisualization.Charting.Series
+            {
+                Name = "Series2",
+                Color = System.Drawing.Color.Red,
+                IsVisibleInLegend = false,
+                ChartType = SeriesChartType.Point
+            };
+
+            this.chart1.Series.Add(series2);
+            int count = 0;
+            List<Vector2> coords = new List<Vector2>();
+            for (int i = 0; i < 10; i++)
+            {
+                for (int j = 0; j < 10; j++)
+                {
+                    if (inputs[count] > 0)
+                    {
+                        series2.Points.AddXY(j, i);
+                        coords.Add(new Vector2(j,i));
+                    }
+                    count++;
+                }
+            }
+            chart1.Invalidate();
+
+            foreach (var item in coords)
+            {
+                CreateColumn(item.X, item.Y);
+            }
+        }
+
+        void CreateColumn(double x, double y)
+        {
+            //Create Nodes
+            IRobotCollection robotNodeServer = robapp.Project.Structure.Nodes.GetAll();
+            int topnode = robotNodeServer.Count+1;
+
+            if (DoesNodeExistAtXY(x, y) == 1)
+            {
+                topnode = GetNodeAtXY(x, y);
+            }
+            else
+            {
+                while (CheckNodeExists(topnode))
+                {
+                    topnode += 1;
+                }
+            }
+
+            int bottomnode = topnode + 1;
+            while (CheckNodeExists(bottomnode))
+            {
+                bottomnode += 1;
+            }
+
+            robapp.Project.Structure.Nodes.Create(topnode, x, y, 0);
+            robapp.Project.Structure.Nodes.Create(bottomnode, x, y, -3);
+            var support = robapp.Project.Structure.Nodes.Get(bottomnode);
+            support.SetLabel(IRobotLabelType.I_LT_SUPPORT, "Base");
+
+
+            var robotBarServer = robapp.Project.Structure.Bars.GetAll();
+            int totalBars = robotBarServer.Count + 1;
+            robapp.Project.Structure.Bars.Create(totalBars, topnode, bottomnode);
+            robapp.Project.Structure.Bars.Get(totalBars).SetLabel(IRobotLabelType.I_LT_BAR_SECTION, "col1");
+            robapp.Project.Structure.Bars.Get(totalBars).SetLabel(IRobotLabelType.I_LT_MEMBER_TYPE, "Column");
+
+            //robapp.Project.Structure.Bars.Get(totalBars).SetLabel(IRobotLabelType.o, "Column");
+        }
+
+        void CreateColumnSize()
+        {
+
+            var robotLabel = robapp.Project.Structure.Labels.Create(IRobotLabelType.I_LT_BAR_SECTION, "col1");
+            RobotBarSectionData robotBarSectionData = robotLabel.Data;
+            robotBarSectionData.ShapeType = IRobotBarSectionShapeType.I_BSST_CONCR_BEAM_RECT;
+            robotBarSectionData.MaterialName = "C25";
+            robotBarSectionData.Concrete.SetValue(IRobotBarSectionConcreteDataValue.I_BSCDV_BEAM_T_B, 0.25);
+            robotBarSectionData.Concrete.SetValue(IRobotBarSectionConcreteDataValue.I_BSCDV_BEAM_T_H, 0.25);
+
+
+            robotBarSectionData.SetValue(IRobotBarSectionDataValue.I_BSDV_BF, 1);
+            robotBarSectionData.SetValue(IRobotBarSectionDataValue.I_BSDV_D, 1);
+            robotBarSectionData.CalcNonstdGeometry();
+            robapp.Project.Structure.Labels.Store(robotLabel);
+        }
+
+        bool CheckNodeExists(int i)
+        {
+            try
+            { 
+                IRobotDataObject node = robapp.Project.Structure.Nodes.Get(i);
+                node.HasLabel(IRobotLabelType.I_LT_SUPPORT);
+                return true;
+            }
+            catch (Exception e)
+            {
+
+            }
+            finally
+            {
+              
+            }
+            return false;
+        }
+
+        public int GetNodeAtXY(double x, double y)
+        {
+            RobotStructureCache robotStructureCache = robapp.Project.Structure.CreateCache();
+            return robotStructureCache.EnsureNodeExist(x, y, 0);
+        }
+
+
+        public int DoesNodeExistAtXY(double x, double y)
+        {
+            RobotStructureCache robotStructureCache = robapp.Project.Structure.CreateCache();
             int i = robotStructureCache.EnsureNodeExist(x, y, 0);
             try
             {
