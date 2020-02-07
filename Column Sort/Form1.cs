@@ -47,20 +47,27 @@ namespace Column_Sort
         {
             try
             {
+                DateTime startTime = DateTime.Now;
                 robapp = new RobotApplication();
                 robapp.Interactive = 0;
                 robapp.UserControl = false;
 
 
                 DeleteAll();
-                GenerateNumofFloorTiles(15);
-                UpdateMeshesForCorrectCalculationSettings();
-                Calculate();
-                CreateColumnSize();
-                GetAndDisplayNodeLocationsOnGraph();
-                //CreateColumn(4, 4);
-                Calculate();
-                GetResults();
+
+
+                //GenerateNumofFloorTiles(15);
+                //UpdateMeshesForCorrectCalculationSettings();
+                //Calculate();
+                //CreateColumnSize();
+                //GetAndDisplayNodeLocationsOnGraph();
+                ////CreateColumn(4, 4);
+                //Calculate();
+                //GetResults();
+
+                //GenerateTilesAt15x15MSpacing(10, new Vector2(5,5));
+                double totalTime = (DateTime.Now - startTime).TotalSeconds;
+                textBox1.AppendText($"Time taken for 5x5 test: {totalTime}");
             }
             catch (Exception E)
             {
@@ -146,10 +153,11 @@ namespace Column_Sort
             //textBox1.AppendText($"Ended at {j},{i} {Environment.NewLine}");
         }
 
-        public void GenerateNumofFloorTiles(int num)
+        public List<Vector2> GenerateNumofFloorTiles(int num)
         {
             //Make an array to store created panels
             panels = new bool[sizeX, sizeY];
+            List<Vector2> CreatedPanels = new List<Vector2>();
 
             //Create a random starting point on the grid
             Random rnd = new Random();
@@ -170,20 +178,14 @@ namespace Column_Sort
                 //If there is nothing in this location create a panel
                 if (panels[j, i] == false)
                 {
-                   
+
                     //Create a 2x2m panel at the selected location
-                    for (int m = 0; m < 2; m++)
-                    {
-                        for (int l = 0; l < 2; l++)
-                        {
-                            CreatePanelAtPoint(j+m, i+l);
-                        }
-                    }
+                    Create2x2MPanel(new Vector2(j,i));
                     //Add the panel to the list
                     panels[j, i] = true;
-
+                    CreatedPanels.Add(new Vector2(j, i));
                     //textBox1.AppendText($"{j},{i} created {Environment.NewLine}");
-                    
+
                     //Repeat unitl num has been reached
                     num -= 1;
                 }
@@ -216,13 +218,47 @@ namespace Column_Sort
 
                     //If a valid coordinate cannot be found stop running
                     if(k < 0 && !ContainsCoordinates(j, i)){
-                        return;
+                        return CreatedPanels;
                     }
                 }
 
             }
-
+            return CreatedPanels;
             //textBox1.AppendText($"Ended at {j},{i} {Environment.NewLine}");
+        }
+
+        void Create2x2MPanel(Vector2 coords)
+        {
+            for (int m = 0; m < 2; m++)
+            {
+                for (int l = 0; l < 2; l++)
+                {
+                    CreatePanelAtPoint(coords.X + m, coords.Y + l);
+                }
+            }
+        }
+
+        void GenerateTilesFromVector2WithOffset(List<Vector2> input, Vector2 offset)
+        {
+            foreach (var item in input)
+            {
+                Create2x2MPanel(item + offset);
+            }
+        }
+
+        void GenerateTilesAt15x15MSpacing(int num, Vector2 size)
+        {
+            List<Vector2> input = GenerateNumofFloorTiles(num);
+
+            for (int i = 0; i < size.X; i++)
+            {
+                for (int j = 0; j < size.Y; j++)
+                {
+                    if (i == 0) { j = 1; }
+                    GenerateTilesFromVector2WithOffset(input, new Vector2(j*15, i*15));
+                }
+            }
+            
         }
 
         void Calculate()

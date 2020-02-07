@@ -1,0 +1,4 @@
+
+*.so
+packages/SciSharp.TensorFlow.Redist.1.15.0/runtimes/osx-x64/native/libtensorflow.dylib
+packages/SciSharp.TensorFlow.Redist.1.15.0/SciSharp.TensorFlow.Redist.1.15.0.nupkg
