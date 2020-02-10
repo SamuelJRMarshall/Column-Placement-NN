@@ -15,6 +15,7 @@ using System.Runtime.InteropServices;
 using System.Windows.Forms.DataVisualization.Charting;
 using static Tensorflow.Binding;
 using System.Numerics;
+using System.IO;
 
 namespace Column_Sort
 {
@@ -25,6 +26,8 @@ namespace Column_Sort
         private bool[,] panels;
         private int sizeX = 8 , sizeY = 8;
         private int numOfColumns;
+        public double DeflectionThreshold = -10;
+        public double ColumnFactor = 20;
         public Form1()
         {
             InitializeComponent();
@@ -47,15 +50,15 @@ namespace Column_Sort
         {
             try
             {
-                DateTime startTime = DateTime.Now;
+
                 robapp = new RobotApplication();
                 robapp.Interactive = 0;
                 robapp.UserControl = false;
 
 
-                DeleteAll();
 
 
+                //DeleteAll();
                 //GenerateNumofFloorTiles(15);
                 //UpdateMeshesForCorrectCalculationSettings();
                 //Calculate();
@@ -65,9 +68,62 @@ namespace Column_Sort
                 //Calculate();
                 //GetResults();
 
-                //GenerateTilesAt15x15MSpacing(10, new Vector2(5,5));
-                double totalTime = (DateTime.Now - startTime).TotalSeconds;
-                textBox1.AppendText($"Time taken for 5x5 test: {totalTime}");
+                //Refresh Model
+                DeleteAll();
+                //Create a floor plan
+                List<Vector2> nodeLocations = GenerateNumofFloorTiles(1);
+                //Copy the plan
+                int tiles = 1;
+                CopyGeneratedTiles(tiles - 1);
+
+                //Analyse the samples
+                double[] inputs = GetAndDisplayNodeLocationsOnGraph();
+
+                //Create NN
+                Child[] children = new Child[tiles * tiles];
+                int k = 0;
+                for (int i = 0; i < tiles; i++)
+                {
+                    for (int j = 0; j < tiles; j++)
+                    {
+                        children[k] = new Child(k, new Vector2(15 * i, 15 * j), true, this);
+                        k += 1;
+                    }
+                }
+
+
+                //Place Columns
+                foreach (var child in children)
+                {
+                    child.PlaceColumns(child.GenerateValuesFromInput(inputs));
+
+                }
+
+                Calculate();
+
+                //Get Deflections
+                //Score output
+                foreach (var child in children)
+                {
+                    child.Score = GetResults(nodeLocations, child.Offset);
+                }
+
+                List<Child> orderedChildren = children.OrderByDescending(o => o.Score).ToList();
+
+                SaveData(orderedChildren[0]);
+
+                //save data to file
+                //load data back from file
+                //randomise the loaded results
+                //run again
+                //reapet
+
+                //Pass Down best
+                //Repeat
+
+
+                
+                //textBox1.AppendText(LoadData());
             }
             catch (Exception E)
             {
@@ -75,6 +131,7 @@ namespace Column_Sort
             }
             finally
             {
+
                 robapp.Interactive = 1;
                 robapp.UserControl = true;
                 robapp = null;
@@ -82,9 +139,45 @@ namespace Column_Sort
 
         }
 
-        void GetResults()
+        double GetResults(List<Vector2> nodeLocations, Vector2 offset)
         {
-            var allNodes = robapp.Project.Structure.Nodes.GetAll();
+            HashSet<int> existingNodes = new HashSet<int>();
+            foreach (var node in nodeLocations)
+            {
+                for (int i = 0; i < 3; i++)
+                {
+                    for (int j = 0; j < 3; j++)
+                    {
+                        int num = DoesNodeExistAtXY(node.X + j + offset.X, node.Y + i + offset.Y, true);
+                        existingNodes.Add(num);
+                    }
+                }
+            }
+
+
+            double deflectionScore = 0;
+            double highestDeflectionZ = 0;
+
+            foreach (var nodeNum in existingNodes)
+            {
+                double val = robapp.Project.Structure.Results.Nodes.Displacements.Value(nodeNum, 1).UZ * 1000;
+
+                if (val > DeflectionThreshold)
+                {
+                    deflectionScore += val * val;
+                }
+                else
+                {
+                    deflectionScore += val;
+                }
+
+                highestDeflectionZ = Math.Min(highestDeflectionZ, val);
+            }
+            return -deflectionScore -highestDeflectionZ;
+        }
+
+        /*
+          var allNodes = robapp.Project.Structure.Nodes.GetAll();
             double total = 0;
             textBox1.AppendText(allNodes.Count + Environment.NewLine);
             for (int i = 1; i <= allNodes.Count; i++)
@@ -95,8 +188,7 @@ namespace Column_Sort
             total *= 1000;
             textBox1.AppendText(total.ToString() + Environment.NewLine + numOfColumns.ToString());
 
-
-        }
+         */
 
         /*
           var allNodes = robapp.Project.Structure.Nodes.GetAll();
@@ -127,6 +219,46 @@ namespace Column_Sort
                 textBox1.AppendText(total.ToString("F5") + Environment.NewLine); 
             }
             */
+
+        public void SaveData(Child bestChild)
+        {
+            File.Create("data.txt").Close();
+
+            using (StreamWriter writetext = new StreamWriter("data.txt"))
+            {
+                
+                for (int i = 0; i < 8; i++)
+                {
+                    for (int j = 0; j < 100; j++)
+                    {
+                        for (int k = 0; k < 100; k++)
+                        {
+                            writetext.Write(bestChild.weights[i, j, k].ToString("G17") +"|");
+                        }
+
+                    }
+                }
+
+                writetext.WriteLine();
+
+                for (int i = 0; i < 8; i++)
+                {
+                    for (int j = 0; j < 100; j++)
+                    {
+                        writetext.Write(bestChild.bias[i, j].ToString("G17") + "|");
+                    }
+                }
+            }
+
+        }
+
+        public string LoadData()
+        {
+            using (StreamReader readtext = new StreamReader("data.txt"))
+            {
+                return readtext.ReadLine();
+            }
+        }
         public void Generate()
         {
             panels = new bool[sizeX, sizeY];
@@ -238,27 +370,15 @@ namespace Column_Sort
             }
         }
 
-        void GenerateTilesFromVector2WithOffset(List<Vector2> input, Vector2 offset)
+        void CopyGeneratedTiles(int num)
         {
-            foreach (var item in input)
-            {
-                Create2x2MPanel(item + offset);
-            }
-        }
+            RobotSelection robotSelection2 = robapp.Project.Structure.Selections.Get(IRobotObjectType.I_OT_PANEL);
+            robotSelection2.FromText("all");
+            robapp.Project.Structure.Edit.SelTranslate(15, 0, 0, IRobotTranslateOptions.I_TO_COPY, num);
 
-        void GenerateTilesAt15x15MSpacing(int num, Vector2 size)
-        {
-            List<Vector2> input = GenerateNumofFloorTiles(num);
-
-            for (int i = 0; i < size.X; i++)
-            {
-                for (int j = 0; j < size.Y; j++)
-                {
-                    if (i == 0) { j = 1; }
-                    GenerateTilesFromVector2WithOffset(input, new Vector2(j*15, i*15));
-                }
-            }
-            
+            robotSelection2 = robapp.Project.Structure.Selections.Get(IRobotObjectType.I_OT_PANEL);
+            robotSelection2.FromText("all");
+            robapp.Project.Structure.Edit.SelTranslate(0, 15, 0, IRobotTranslateOptions.I_TO_COPY, num);
         }
 
         void Calculate()
@@ -320,57 +440,47 @@ namespace Column_Sort
             panel.SetLabel(IRobotLabelType.I_LT_PANEL_CALC_MODEL, "Shell");
         }
 
-        public void GetAndDisplayNodeLocationsOnGraph()
+        public double[] GetAndDisplayNodeLocationsOnGraph()
         {
             RobotApplication robotApplication = new RobotApplication();
-            chart1.Series.Clear();
+            //chart1.Series.Clear();
 
-            var series1 = new System.Windows.Forms.DataVisualization.Charting.Series
-            {
-                Name = "Series1",
-                Color = System.Drawing.Color.Green,
-                IsVisibleInLegend = false,
-                ChartType = SeriesChartType.Point
-            };
+            //var series1 = new System.Windows.Forms.DataVisualization.Charting.Series
+            //{
+            //    Name = "Series1",
+            //    Color = System.Drawing.Color.Green,
+            //    IsVisibleInLegend = false,
+            //    ChartType = SeriesChartType.Point
+            //};
 
-            this.chart1.Series.Add(series1);
-            try
-            {
-                //textBox1.AppendText("Method Running" + Environment.NewLine);
+            //this.chart1.Series.Add(series1);
+            
+            //textBox1.AppendText("Method Running" + Environment.NewLine);
                 
 
-                double[] nodes = new double[100];
-                int count = 0;
+            double[] nodes = new double[100];
+            int count = 0;
 
-                for (float i = 0; i < 10; i++)
+            for (float i = 0; i < 10; i++)
+            {
+                for (float j = 0; j < 10; j++)
                 {
-                    for (float j = 0; j < 10; j++)
+
+                    nodes[count] = DoesNodeExistAtXY(j, i, false);
+                    bool nodeReal = nodes[count] != 0;
+                    if (nodeReal)
                     {
-
-                        nodes[count] = DoesNodeExistAtXY(j, i);
-                        bool nodeReal = nodes[count] != 0;
-                        if (nodeReal)
-                        {
-                            series1.Points.AddXY(j, i);
-                        }
-                        //textBox1.AppendText($"{j},{i} node is {nodeReal.ToString()} {Environment.NewLine}");
-                        count++;
-
+                        //series1.Points.AddXY(j, i);
                     }
+                    //textBox1.AppendText($"{j},{i} node is {nodeReal.ToString()} {Environment.NewLine}");
+                    count++;
+
                 }
-                chart1.Invalidate();
+            }
+            chart1.Invalidate();
 
-                ConstructNN(nodes);
-            }
-            catch (Exception e)
-            {
-                textBox1.Text = e.ToString();
-            }
-            finally
-            {
-                robotApplication = null;
-            }
-
+            return nodes;
+            
         }
 
         void DeleteAll()
@@ -429,7 +539,7 @@ namespace Column_Sort
 
         }
 
-        void ConstructNN(double[] inputs)
+        int ConstructNN(double[] inputs, Vector2 offset)
         {
             Random rnd = new Random();
             double[,,] weights = new double[8,100,100];
@@ -445,7 +555,6 @@ namespace Column_Sort
                     for (int k = 0; k < 100; k++)
                     {
                         weights[i,j,k] = ((rnd.NextDouble() * 2.0) - 1.0) * 0.00001;
-
                     }
                     //textBox1.AppendText($"weights:{i}{j}{1} is {weights[i, j, 1]}{Environment.NewLine}");
 
@@ -475,15 +584,16 @@ namespace Column_Sort
                 }
             }
 
-            var series2 = new System.Windows.Forms.DataVisualization.Charting.Series
-            {
-                Name = "Series2",
-                Color = System.Drawing.Color.Red,
-                IsVisibleInLegend = false,
-                ChartType = SeriesChartType.Point
-            };
+            //var series2 = new System.Windows.Forms.DataVisualization.Charting.Series
+            //{
+            //    Name = "Series2",
+            //    Color = System.Drawing.Color.Red,
+            //    IsVisibleInLegend = false,
+            //    ChartType = SeriesChartType.Point
+            //};
 
-            this.chart1.Series.Add(series2);
+            //this.chart1.Series.Add(series2);
+
             int count = 0;
             List<Vector2> coords = new List<Vector2>();
             for (int i = 0; i < 10; i++)
@@ -492,30 +602,29 @@ namespace Column_Sort
                 {
                     if (inputs[count] > 0)
                     {
-                        series2.Points.AddXY(j, i);
-                        coords.Add(new Vector2(j,i));
+                        //series2.Points.AddXY(j, i);
+                        coords.Add(new Vector2(j, i));
                     }
                     count++;
                 }
             }
-            chart1.Invalidate();
+
+            //chart1.Invalidate();
 
             foreach (var item in coords)
             {
-                CreateColumn(item.X, item.Y);
+                CreateColumn(item.X + offset.X, item.Y + offset.Y);
             }
-            numOfColumns = coords.Count;
-
-
+            return numOfColumns = coords.Count;
         }
 
-        void CreateColumn(double x, double y)
+        public void CreateColumn(double x, double y)
         {
             //Create Nodes
             IRobotCollection robotNodeServer = robapp.Project.Structure.Nodes.GetAll();
             int topnode = robotNodeServer.Count+1;
 
-            if (DoesNodeExistAtXY(x, y) == 1)
+            if (DoesNodeExistAtXY(x, y, false) == 1)
             {
                 topnode = GetNodeAtXY(x, y);
             }
@@ -595,16 +704,20 @@ namespace Column_Sort
 
         }
 
-        public int DoesNodeExistAtXY(double x, double y)
+        public int DoesNodeExistAtXY(double x, double y, bool returnNodeNumber)
         {
             RobotStructureCache robotStructureCache = robapp.Project.Structure.CreateCache();
             int i = robotStructureCache.EnsureNodeExist(x, y, 0);
             try
             {
                 IRobotDataObject node = robapp.Project.Structure.Nodes.Get(i);
-                if(node.Number == i)
+                if(node.Number == i && !returnNodeNumber)
                 {
                     return 1;
+                }
+                else
+                {
+                    return node.Number;
                 }
             }
             catch(Exception e)
