@@ -54,7 +54,19 @@ namespace Column_Sort
 
         void LoadNN(double[,,] loadedWeights, double[,] loadedBias)
         {
+            Random rnd = new Random();
+            for (int i = 0; i < 8; i++)
+            {
+                for (int j = 0; j < 100; j++)
+                {
+                    for (int k = 0; k < 100; k++)
+                    {
+                        weights[i, j, k] = loadedWeights[i, j, k] + ((rnd.NextDouble() * 2.0) - 1.0) * 0.000001;
+                    }
+                    bias[i, j] = loadedBias[i,j] + ((rnd.NextDouble() * 2.0) - 1.0) * 0.01;
+                }
 
+            }
         }
 
         public List<Vector2> GenerateValuesFromInput(double[] inputs) {
