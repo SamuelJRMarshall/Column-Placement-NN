@@ -73,83 +73,10 @@ namespace Column_Sort
                 //GetResults();
 
                 //Refresh Model
-                DateTime startTime = DateTime.Now;
-                textBox1.AppendText($"Start: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
-
-                DeleteAll();
-                textBox1.AppendText($"Delete: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
-
-                //Create a floor plan
-                List<Vector2> nodeLocations = GenerateNumofFloorTiles(10);
-                textBox1.AppendText($"Generate Tiles: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
-
-                //Copy the plan
-                int tiles = 5;
-
-                CopyGeneratedTiles(tiles - 1);
-                textBox1.AppendText($"Copy Tiles: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
-
-                //Analyse the samples
-                double[] inputs = GetAndDisplayNodeLocationsOnGraph();
-                textBox1.AppendText($"Get nodes: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
-
-                SetTopNode();
-                textBox1.AppendText($"Set Top node: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
-
-                //Create NN
-                Child[] children = new Child[tiles * tiles];
-                int k = 0;
-                for (int i = 0; i < tiles; i++)
+                for (int i = 2; i < 11; i++)
                 {
-                    for (int j = 0; j < tiles; j++)
-                    {
-                        if (PassdownChild == null)
-                        {
-                            children[k] = new Child(k, new Vector2(15 * i, 15 * j), true, this);
-                        }
-                        else
-                        {
-                            children[k] = new Child(k, new Vector2(15 * i, 15 * j), true, this, PassdownChild.weights, PassdownChild.bias);
-                        }
-                        textBox1.AppendText($"Create child {k}: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
-
-                        k += 1;
-                    }
+                    Run(i);
                 }
-
-
-                //Place Columns
-                foreach (var child in children)
-                {
-                    child.PlaceColumns(child.GenerateValuesFromInput(inputs));
-                    textBox1.AppendText($"Place columsn for child {child.Id}: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
-
-                }
-
-                Calculate();
-                textBox1.AppendText($"Calculate : {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
-
-                //Get Deflections
-                //Score output
-                foreach (var child in children)
-                {
-                    child.Score = GetResults(nodeLocations, child.Offset);
-                    textBox1.AppendText($"Get results for child {child.Id}: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
-
-                }
-
-                List<Child> orderedChildren = children.OrderBy(o => o.Score).ToList();
-
-                //foreach (var child in orderedChildren)
-                //{
-                //    textBox1.AppendText(child.Score.ToString() + Environment.NewLine);
-                //}
-
-
-                PassdownChild = orderedChildren[0];
-                //textBox1.AppendText("Best: " + PassdownChild.Score.ToString() + Environment.NewLine);
-
-                textBox1.AppendText($"Done: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
 
                 //save data to file
                 //load data back from file
@@ -175,6 +102,87 @@ namespace Column_Sort
                 robapp = null;
             }
 
+        }
+
+        void Run(int z)
+        {
+            DateTime startTime = DateTime.Now;
+            textBox1.AppendText($"Start: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
+
+            DeleteAll();
+            textBox1.AppendText($"Delete: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
+
+            //Create a floor plan
+            List<Vector2> nodeLocations = GenerateNumofFloorTiles(10);
+            textBox1.AppendText($"Generate Tiles: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
+
+            //Copy the plan
+            int tiles = z;
+
+            CopyGeneratedTiles(tiles - 1);
+            textBox1.AppendText($"Copy Tiles: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
+
+            //Analyse the samples
+            double[] inputs = GetAndDisplayNodeLocationsOnGraph();
+            textBox1.AppendText($"Get nodes: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
+
+            SetTopNode();
+            textBox1.AppendText($"Set Top node: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
+
+            //Create NN
+            Child[] children = new Child[tiles * tiles];
+            int k = 0;
+            for (int i = 0; i < tiles; i++)
+            {
+                for (int j = 0; j < tiles; j++)
+                {
+                    if (PassdownChild == null)
+                    {
+                        children[k] = new Child(k, new Vector2(15 * i, 15 * j), true, this);
+                    }
+                    else
+                    {
+                        children[k] = new Child(k, new Vector2(15 * i, 15 * j), true, this, PassdownChild.weights, PassdownChild.bias);
+                    }
+                    textBox1.AppendText($"Create child {k}: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
+
+                    k += 1;
+                }
+            }
+
+
+            //Place Columns
+            foreach (var child in children)
+            {
+                child.PlaceColumns(child.GenerateValuesFromInput(inputs));
+                textBox1.AppendText($"Place columsn for child {child.Id}: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
+
+            }
+
+            Calculate();
+            textBox1.AppendText($"Calculate : {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
+
+            //Get Deflections
+            //Score output
+            foreach (var child in children)
+            {
+                child.Score = GetResults(nodeLocations, child.Offset);
+                textBox1.AppendText($"Get results for child {child.Id}: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
+
+            }
+
+            List<Child> orderedChildren = children.OrderBy(o => o.Score).ToList();
+
+            //foreach (var child in orderedChildren)
+            //{
+            //    textBox1.AppendText(child.Score.ToString() + Environment.NewLine);
+            //}
+
+
+            PassdownChild = orderedChildren[0];
+            //textBox1.AppendText("Best: " + PassdownChild.Score.ToString() + Environment.NewLine);
+
+            textBox1.AppendText($"Done {tiles}: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
         }
 
         
@@ -684,6 +692,7 @@ namespace Column_Sort
 
             if (topnode == 0)
             {
+                return;
                 //Find a node which works
                 topnode = lastNode + 1;
                 while (CheckNodeExists(topnode))
@@ -705,6 +714,7 @@ namespace Column_Sort
             while (CheckNodeExists(bottomnode))
             {
                 bottomnode += 1;
+                lastNode = Math.Max(lastNode, bottomnode);
             }
             //textBox1.AppendText($"CheckNodeExists Bottom: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}Top: {topnode}, Bottom: {bottomnode}, Last: {lastNode}{Environment.NewLine}");
 
