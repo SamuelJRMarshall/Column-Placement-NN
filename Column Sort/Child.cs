@@ -13,27 +13,20 @@ namespace Column_Sort
         public readonly int Id;
         public readonly Vector2 Offset;
         public int NumberOfColumns;
+        public int Gen;
 
         public double[,,] weights = new double[8, 100, 100];
         public double[,] bias = new double[8, 100];
-        double[,,] values = new double[8, 100, 100];
-        double[,] totals = new double[8, 100];
+        public double[,,] values = new double[8, 100, 100];
+        public double[,] totals = new double[8, 100];
 
         Form1 controller;
 
-        public Child(int id, Vector2 offset, bool isNew, Form1 form1, double[,,] loadedWeights = null, double[,] loadedBias = null)
+        public Child(int id, Vector2 offset, int gen)
         {
             Id = id;
             Offset = offset;
-            controller = form1;
-            if (isNew)
-            {
-                CreateFreshNN();
-            }
-            else
-            {
-                LoadNN(loadedWeights, loadedBias);
-            }
+            Gen = gen;
         }
 
         void CreateFreshNN() {
@@ -44,9 +37,9 @@ namespace Column_Sort
                 {
                     for (int k = 0; k < 100; k++)
                     {
-                        weights[i, j, k] = ((rnd.NextDouble() * 2.0) - 1.0) * 0.00001;
+                        weights[i, j, k] = ((rnd.NextDouble() * 2.0) - 1.0) * 0.001;
                     }
-                    bias[i, j] = (rnd.NextDouble() * 2.0) - 1.0;
+                    bias[i, j] = ((rnd.NextDouble() * 2.0) - 1.0) * 0.0001;
                 }
             
             } 
@@ -63,7 +56,7 @@ namespace Column_Sort
                     {
                         weights[i, j, k] = loadedWeights[i, j, k] + ((rnd.NextDouble() * 2.0) - 1.0) * 0.000001;
                     }
-                    bias[i, j] = loadedBias[i,j] + ((rnd.NextDouble() * 2.0) - 1.0) * 0.01;
+                    bias[i, j] = loadedBias[i,j] + ((rnd.NextDouble() * 2.0) - 1.0) * 0.00001;
                 }
 
             }
@@ -109,7 +102,7 @@ namespace Column_Sort
         {
             foreach (var columnCoord in coordinatesOfColumns)
             {
-                controller.CreateColumn(columnCoord.X + Offset.X, columnCoord.Y + Offset.Y);
+                controller.CreateColumn(columnCoord + Offset);
             }
         }
     }
