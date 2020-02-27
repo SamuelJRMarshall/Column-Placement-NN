@@ -27,10 +27,11 @@ namespace Column_Sort
         private bool[,] panels;
         private int sizeX = 8 , sizeY = 8;
         //private int numOfColumns;
-        public double DeflectionThreshold = -10;
+        public double DeflectionThreshold = -5.65; //sqrt 2 *1000/ 250
         public double ColumnFactor = 50;
 
         int lastNode = 0;
+        int numOfTiles;
 
         private Child PassdownChild;
         public Form1()
@@ -60,48 +61,30 @@ namespace Column_Sort
                 robapp.Interactive = 0;
                 robapp.UserControl = false;
 
+                LoadData();
+                if (PassdownChild != null)
+                {
+                    textBox1.Text = $"Gen: {PassdownChild.Gen}, start.";
+                }
 
-                //DeleteAll();
-                //GenerateNumofFloorTiles(15);
-                //UpdateMeshesForCorrectCalculationSettings();
-                //Calculate();
-                //CreateColumnSize();
-                //GetAndDisplayNodeLocationsOnGraph();
-                ////CreateColumn(4, 4);
-                //Calculate();
-                //GetResults();
+                DateTime startTime = DateTime.Now;
+                double timer = 60 * 10;
 
-                //Refresh Model
+                while (timer > 0)
+                {
+                    InternalTest(3);
+                    timer -= (DateTime.Now - startTime).TotalSeconds;
+                    textBox1.AppendText(timer.ToString() + Environment.NewLine);
+                    startTime = DateTime.Now;
+                }
 
-                //DateTime startTime = DateTime.Now;
-                //double timer = 60 * 60 * 1.5;
+                SaveData(PassdownChild);
 
-                //while (timer > 0)
-                //{
-                //    InternalTest(3);
-                //    timer -= (DateTime.Now - startTime).TotalSeconds;
-                //    textBox1.AppendText(timer.ToString() + Environment.NewLine);
-                //    startTime = DateTime.Now;
-                //}
-
-                textBox1.AppendText( ReadAllTextFiles ());
-
-                //save data to file
-                //load data back from file
-                //randomise the loaded results
-                //run again
-                //repeat
-
-                //Pass Down best
-                //Repeat
-
-
-
-                //textBox1.AppendText(LoadData());
+                
             }
             catch (Exception E)
             {
-                textBox1.Text = (E.ToString());
+                textBox1.AppendText(Environment.NewLine + E.ToString());
             }
             finally
             {
@@ -109,6 +92,24 @@ namespace Column_Sort
                 robapp.Interactive = 1;
                 robapp.UserControl = true;
                 robapp = null;
+            }
+
+        }
+
+        private void button2_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                textBox1.AppendText(ReadAllTextFiles());
+                textBox1.AppendText("hi");
+            }
+            catch (Exception E)
+            {
+                textBox1.AppendText(Environment.NewLine + E.ToString());
+            }
+            finally
+            {
+
             }
 
         }
@@ -208,7 +209,7 @@ namespace Column_Sort
             //Create a floor plan
 
             Random rnd = new Random();
-            int numOfTiles = rnd.Next(4, 14);
+            numOfTiles = rnd.Next(4, 14);
 
             List<Vector2> nodeLocations = GenerateNumofFloorTiles(numOfTiles);
             //textBox1.AppendText($"Generate Tiles: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
@@ -270,6 +271,8 @@ namespace Column_Sort
             PassdownChild = orderedChildren[0];
 
             SaveScoresToTextFile(PassdownChild.Gen, scoresList);
+
+            SaveData(PassdownChild);
 
             //if (orderedChildren[0].Gen % 10 == 0)
             //{
@@ -396,14 +399,10 @@ namespace Column_Sort
                 {
                     deflectionScore += val * 2;
                 }
-                else
-                {
-                    deflectionScore += val;
-                }
 
                 highestDeflectionZ = Math.Min(highestDeflectionZ, val);
             }
-            return -(deflectionScore + highestDeflectionZ -(numOfColumns * ColumnFactor));
+            return -((deflectionScore + highestDeflectionZ -(numOfColumns * ColumnFactor))/ numOfTiles);
         }
 
         /*
@@ -463,32 +462,77 @@ namespace Column_Sort
                     {
                         for (int k = 0; k < 100; k++)
                         {
-                            writetext.Write(bestChild.weights[i, j, k].ToString("G17") +"|");
+                            writetext.Write(bestChild.weights[i, j, k].ToString("G17") +"\n");
                         }
-
                     }
                 }
 
-                writetext.WriteLine();
+                writetext.Write(":\n");
 
                 for (int i = 0; i < 8; i++)
                 {
                     for (int j = 0; j < 100; j++)
                     {
-                        writetext.Write(bestChild.bias[i, j].ToString("G17") + "|");
+                        writetext.Write(bestChild.bias[i, j].ToString("G17") + "\n");
                     }
                 }
+
+                writetext.Write(":\n");
+
+                writetext.Write(bestChild.Gen);
             }
 
         }
 
-        public string LoadData()
+        public void LoadData()
         {
+            string text = "";
             using (StreamReader readtext = new StreamReader("data.txt"))
             {
-                return readtext.ReadLine();
+                text = readtext.ReadToEnd();
+            }
+
+            if (text != "")
+            {
+                PassdownChild = new Child(0, new Vector2(0, 0), 0);
+            }
+            else
+            {
+                return;
+            }
+
+            string[] splitText = text.Split(':');
+
+            string weights = splitText[0];
+            string bias = splitText[1];
+            string generation = splitText[2];
+
+            int p = 0;
+            int q = 0;
+
+            string[] allWeights = weights.Split('\n');
+            List<string> allBias = bias.Split('\n').ToList<string>();
+
+            allBias.RemoveAt(0);
+            allBias.RemoveAt(allBias.Count - 1);
+
+            PassdownChild.Gen = int.Parse(generation);
+
+            for (int i = 0; i < 8; i++)
+            {
+                for (int j = 0; j < 100; j++)
+                {
+                    for (int k = 0; k < 100; k++)
+                    {
+                        PassdownChild.weights[i, j, k] = double.Parse(allWeights[p]);
+                        p++;
+                    }
+                    PassdownChild.bias[i, j] = float.Parse(allBias[q]);
+                    q++;
+                }
             }
         }
+
         public void Generate()
         {
             panels = new bool[sizeX, sizeY];
@@ -749,6 +793,7 @@ namespace Column_Sort
             //robotSelection.FromText("all");
             //robapp.Project.Structure.Nodes.DeleteMany(robotSelection);
 
+            robapp.Project.Close();
             robapp.Project.New(IRobotProjectType.I_PT_BUILDING);
 
         }
@@ -793,7 +838,7 @@ namespace Column_Sort
             }
             catch (Exception e)
             {
-                textBox1.Text = e.ToString();
+                textBox1.AppendText(Environment.NewLine + e.ToString());
             }
             finally
             {
