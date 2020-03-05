@@ -77,9 +77,6 @@ namespace Column_Sort
                     textBox1.AppendText(timer.ToString() + Environment.NewLine);
                     startTime = DateTime.Now;
                 }
-
-                SaveData(PassdownChild);
-
                 
             }
             catch (Exception E)
@@ -88,6 +85,7 @@ namespace Column_Sort
             }
             finally
             {
+                SaveData(PassdownChild);
                 robapp.Visible = 1;
                 robapp.Interactive = 1;
                 robapp.UserControl = true;
@@ -1103,6 +1101,11 @@ namespace Column_Sort
         //}
 
         private void chart1_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void label1_Click(object sender, EventArgs e)
         {
 
         }
