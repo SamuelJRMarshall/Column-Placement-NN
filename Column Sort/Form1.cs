@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections;
 using System.ComponentModel;
 using System.Data;
 using System.Drawing;
@@ -31,7 +32,10 @@ namespace Column_Sort
         public double ColumnFactor = 50;
 
         int lastNode = 0;
+        int lastObject = 0;
         int numOfTiles;
+        DateTime startTime;
+        HashSet<int> AllNodesInModel;
 
         private Child PassdownChild;
         public Form1()
@@ -61,14 +65,14 @@ namespace Column_Sort
                 robapp.Interactive = 0;
                 robapp.UserControl = false;
 
-                LoadData();
+                //LoadData();
                 if (PassdownChild != null)
                 {
                     textBox1.Text = $"Gen: {PassdownChild.Gen}, start.";
                 }
 
-                DateTime startTime = DateTime.Now;
-                double timer = 60 * 10;
+                startTime = DateTime.Now;
+                double timer = 60 * 0.5;
 
                 while (timer > 0)
                 {
@@ -81,11 +85,14 @@ namespace Column_Sort
             }
             catch (Exception E)
             {
-                textBox1.AppendText(Environment.NewLine + E.ToString());
+                PrintErrorMessage(E);
             }
             finally
             {
-                SaveData(PassdownChild);
+                if (PassdownChild != null)
+                {
+                    SaveData(PassdownChild);
+                }
                 robapp.Visible = 1;
                 robapp.Interactive = 1;
                 robapp.UserControl = true;
@@ -99,11 +106,10 @@ namespace Column_Sort
             try
             {
                 textBox1.AppendText(ReadAllTextFiles());
-                textBox1.AppendText("hi");
             }
             catch (Exception E)
             {
-                textBox1.AppendText(Environment.NewLine + E.ToString());
+               PrintErrorMessage(E);
             }
             finally
             {
@@ -198,11 +204,9 @@ namespace Column_Sort
 
         void InternalTest(int samples)
         {
-            //DateTime startTime = DateTime.Now;
-            //textBox1.AppendText($"Start: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
+            DateTime startTime = DateTime.Now;
 
             DeleteAll();
-            //textBox1.AppendText($"Delete: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
 
             //Create a floor plan
 
@@ -210,20 +214,19 @@ namespace Column_Sort
             numOfTiles = rnd.Next(4, 14);
 
             List<Vector2> nodeLocations = GenerateNumofFloorTiles(numOfTiles);
-            //textBox1.AppendText($"Generate Tiles: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
 
             //Copy the plan
             int tiles = samples;
 
             CopyGeneratedTiles(tiles - 1);
-            //textBox1.AppendText($"Copy Tiles: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
 
             //Analyse the samples
             double[] inputs = GetAndDisplayNodeLocationsOnGraph();
-            //textBox1.AppendText($"Get nodes: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
 
             SetTopNode();
-            //textBox1.AppendText($"Set Top node: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
+            textBox1.AppendText($"Set Top node: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
+
+            AllNodesInModel = GetAllNodes();
 
             //Create NN
             List<Child> Children = new List<Child>();
@@ -240,15 +243,15 @@ namespace Column_Sort
                     {
                         Children.Add(ConstructNN(k, inputs, new Vector2(15 * i, 15 * j), PassdownChild));
                     }
+
                     k += 1;
                 }
             }
 
             Calculate();
-            //textBox1.AppendText($"Calculate : {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
 
-            //Get Deflections
-            //Score output
+            
+
             k = 0;
             for (int i = 0; i < tiles; i++)
             {
@@ -258,6 +261,7 @@ namespace Column_Sort
                     k += 1;
                 }
             }
+
 
             List<Child> orderedChildren = Children.OrderBy(o => o.Score).ToList();
             List<double> scoresList = new List<double>();
@@ -272,15 +276,8 @@ namespace Column_Sort
 
             SaveData(PassdownChild);
 
-            //if (orderedChildren[0].Gen % 10 == 0)
-            //{
-            //    Screenshot(PassdownChild.Gen, PassdownChild.Offset);
-            //}
-
             PassdownChild.Gen += 1;
-            //textBox1.AppendText($"{PassdownChild.Id} : {PassdownChild.Score} {Environment.NewLine}");
 
-            //textBox1.AppendText($"Done: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}{Environment.NewLine}");
         }
 
         void SaveScoresToTextFile(int gen, List<double> scores)
@@ -295,7 +292,6 @@ namespace Column_Sort
             string data = gen.ToString() + "," + scores.Average().ToString("G17") + "," + StandardDeviation(scores).ToString("G17");
 
             File.WriteAllText(currentDirectory + FileName, data);
-
         }
 
         string ReadAllTextFiles()
@@ -773,7 +769,7 @@ namespace Column_Sort
 
                 }
             }
-            chart1.Invalidate();
+            //chart1.Invalidate();
 
             return nodes;
             
@@ -847,6 +843,7 @@ namespace Column_Sort
 
         Child ConstructNN(int id, double[] inputs, Vector2 offset)
         {
+
             Child NN = new Child(id, offset, 1);
             Random rnd = new Random();
             double val = 0;
@@ -859,11 +856,7 @@ namespace Column_Sort
                     {
                         NN.weights[i,j,k] = ((rnd.NextDouble() * 2.0) - 1.0) * 0.00001;
                     }
-                    //textBox1.AppendText($"weights:{i}{j}{1} is {weights[i, j, 1]}{Environment.NewLine}");
-
                     NN.bias[i,j] = (rnd.NextDouble() * 2.0) - 1.0;
-                    //textBox1.AppendText($"bias:{i}{j} is {bias[i, j]}{Environment.NewLine}");
-
                 }
             }
 
@@ -877,25 +870,13 @@ namespace Column_Sort
                         NN.values[i,j,k] = inputs[k] * NN.weights[i, j, k];
                         val += NN.values[i, j, k];
                     }
-                    //textBox1.AppendText($"value:{i}{j}{1} is {values[i, j, 1]}{Environment.NewLine}");
 
                     val += NN.bias[i, j];
                     NN.totals[i, j] = val;
-                    //textBox1.AppendText($"total:{i}{j} is {totals[i, j]}{Environment.NewLine}");
                     inputs[j] = NN.totals[i, j];
                     val = 0;
                 }
             }
-
-            //var series2 = new System.Windows.Forms.DataVisualization.Charting.Series
-            //{
-            //    Name = "Series2",
-            //    Color = System.Drawing.Color.Red,
-            //    IsVisibleInLegend = false,
-            //    ChartType = SeriesChartType.Point
-            //};
-
-            //this.chart1.Series.Add(series2);
 
             int count = 0;
             List<Vector2> coords = new List<Vector2>();
@@ -905,19 +886,19 @@ namespace Column_Sort
                 {
                     if (inputs[count] > 0)
                     {
-                        //series2.Points.AddXY(j, i);
                         coords.Add(new Vector2(j, i));
                     }
                     count++;
                 }
             }
 
-            //chart1.Invalidate();
+
 
             foreach (var item in coords)
             {
                 NN.NumberOfColumns += CreateColumn(item + offset);
             }
+
             return NN;
         }
 
@@ -1000,63 +981,119 @@ namespace Column_Sort
 
         private void SetTopNode()
         {
-            IRobotCollection robotNodeServer = robapp.Project.Structure.Nodes.GetAll();
-            lastNode = robotNodeServer.Count;
+            lastNode = robapp.Project.Structure.Nodes.GetAll().Count;
+            lastObject = robapp.Project.Structure.Objects.GetAll().Count;
         }
         public int CreateColumn(Vector2 coords)
         {
+
+            textBox1.AppendText($"Start: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
             int topnode = 0;
             int bottomnode = 0;
-            DateTime startTime = DateTime.Now;
 
             //Does the top node exist?
             topnode = DoesNodeExistAtXY(coords, true);
-            //If 0 is returned it doesnt
+            textBox1.AppendText($"Top Node: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
 
-            if (topnode == 0)
-            {
-                return 2;
-                //Find a node which works
-                topnode = lastNode + 1;
-                while (CheckNodeExists(topnode))
-                {
-                    //Check until this returns there is no node at that number
-                    topnode += 1;
-                }
-                lastNode = Math.Max(lastNode, topnode);
-                bottomnode = topnode + 1;
-            }
-            else
+            if (topnode >= 0)
             {
                 //the top node exists and is probably a low number so use the last highest node number
                 bottomnode = lastNode + 1;
             }
-            //textBox1.AppendText($"CheckNodeExists Top: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
+            else
+            {
+                //If topnode is 0 then it doesnt exist
+                textBox1.AppendText($"Return: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
 
+                return 2;
+            }
+            textBox1.AppendText($"Check bottom node: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
 
-            while (CheckNodeExists(bottomnode))
+            while (AllNodesInModel.Contains(bottomnode))
             {
                 bottomnode += 1;
-                lastNode = Math.Max(lastNode, bottomnode);
             }
-            //textBox1.AppendText($"CheckNodeExists Bottom: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}Top: {topnode}, Bottom: {bottomnode}, Last: {lastNode}{Environment.NewLine}");
+            textBox1.AppendText($"BottomNode: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
+
+            lastNode = Math.Max(lastNode, bottomnode);
 
 
             robapp.Project.Structure.Nodes.Create(topnode, coords.X, coords.Y, 0);
             robapp.Project.Structure.Nodes.Create(bottomnode, coords.X, coords.Y, -3);
-            var support = robapp.Project.Structure.Nodes.Get(bottomnode);
-            support.SetLabel(IRobotLabelType.I_LT_SUPPORT, "Fixed");
+            robapp.Project.Structure.Nodes.Get(bottomnode).SetLabel(IRobotLabelType.I_LT_SUPPORT, "Fixed");
+            textBox1.AppendText($"Create nodes: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
 
 
-            var robotBarServer = robapp.Project.Structure.Objects.GetAll();
-            int totalBars = robotBarServer.Count + 1;
+            int totalBars = lastNode + 1;
             robapp.Project.Structure.Bars.Create(totalBars, topnode, bottomnode);
             robapp.Project.Structure.Bars.Get(totalBars).SetLabel(IRobotLabelType.I_LT_BAR_SECTION, "col1");
             robapp.Project.Structure.Bars.Get(totalBars).SetLabel(IRobotLabelType.I_LT_MEMBER_TYPE, "Column");
-            return 1;
+            textBox1.AppendText($"Create bar: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
 
-            //robapp.Project.Structure.Bars.Get(totalBars).SetLabel(IRobotLabelType.o, "Column");
+            return 1;
         }
+
+
+        //public int CreateColumn(Vector2 coords)
+        //{
+        //    int topnode = 0;
+        //    int bottomnode = 0;
+
+        //    textBox1.AppendText($"Create Columns: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
+
+
+        //    //Does the top node exist?
+        //    topnode = DoesNodeExistAtXY(coords, true);
+        //    //If 0 is returned it doesnt
+        //    textBox1.AppendText($"Does node exist: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
+
+        //    if (topnode == 0)
+        //    {
+        //        return 2;
+        //        //Find a node which works
+        //        topnode = lastNode + 1;
+        //        while (CheckNodeExists(topnode))
+        //        {
+        //            //Check until this returns there is no node at that number
+        //            topnode += 1;
+        //        }
+        //        lastNode = Math.Max(lastNode, topnode);
+        //        bottomnode = topnode + 1;
+        //    }
+        //    else
+        //    {
+        //        //the top node exists and is probably a low number so use the last highest node number
+        //        bottomnode = lastNode + 1;
+        //    }
+
+
+        //    textBox1.AppendText($"Check node exist: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
+
+        //    while (CheckNodeExists(bottomnode))
+        //    {
+        //        bottomnode += 1;
+        //        lastNode = Math.Max(lastNode, bottomnode);
+        //    }
+        //    textBox1.AppendText($"Check Node Exists: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
+
+
+        //    robapp.Project.Structure.Nodes.Create(topnode, coords.X, coords.Y, 0);
+        //    robapp.Project.Structure.Nodes.Create(bottomnode, coords.X, coords.Y, -3);
+        //    var support = robapp.Project.Structure.Nodes.Get(bottomnode);
+        //    support.SetLabel(IRobotLabelType.I_LT_SUPPORT, "Fixed");
+
+        //    textBox1.AppendText($"Create Supports: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
+
+
+        //    var robotBarServer = robapp.Project.Structure.Objects.GetAll();
+        //    int totalBars = robotBarServer.Count + 1;
+        //    robapp.Project.Structure.Bars.Create(totalBars, topnode, bottomnode);
+        //    robapp.Project.Structure.Bars.Get(totalBars).SetLabel(IRobotLabelType.I_LT_BAR_SECTION, "col1");
+        //    robapp.Project.Structure.Bars.Get(totalBars).SetLabel(IRobotLabelType.I_LT_MEMBER_TYPE, "Column");
+        //    textBox1.AppendText($"Create column: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
+
+        //    return 1;
+        //}
 
         void CreateColumnSize()
         {
@@ -1068,11 +1105,46 @@ namespace Column_Sort
             robotBarSectionData.Concrete.SetValue(IRobotBarSectionConcreteDataValue.I_BSCDV_BEAM_T_B, 0.25);
             robotBarSectionData.Concrete.SetValue(IRobotBarSectionConcreteDataValue.I_BSCDV_BEAM_T_H, 0.25);
 
-
             robotBarSectionData.SetValue(IRobotBarSectionDataValue.I_BSDV_BF, 1);
             robotBarSectionData.SetValue(IRobotBarSectionDataValue.I_BSDV_D, 1);
             robotBarSectionData.CalcNonstdGeometry();
             robapp.Project.Structure.Labels.Store(robotLabel);
+        }
+
+        HashSet<int> GetAllNodes()
+        {
+            var allNodes = new HashSet<int>();
+            var numberOfNodes = robapp.Project.Structure.Nodes.GetAll().Count;
+
+            for (int i = 0; i < numberOfNodes; i++)
+            {
+                var j = CheckNodeExistsReturnInt(i);
+                if(j != -1)
+                {
+                    allNodes.Add(i);
+                }
+            }
+
+            return allNodes;
+        }
+
+        int CheckNodeExistsReturnInt(int i)
+        {
+            try
+            {
+                IRobotDataObject node = robapp.Project.Structure.Nodes.Get(i);
+                node.HasLabel(IRobotLabelType.I_LT_SUPPORT);
+                return i;
+            }
+            catch (Exception e)
+            {
+
+            }
+            finally
+            {
+
+            }
+            return -1;
         }
 
         bool CheckNodeExists(int i)
@@ -1094,24 +1166,20 @@ namespace Column_Sort
             return false;
         }
 
-        //public int GetNodeAtXY(Vector2 coords)
-        //{
-        //    RobotStructureCache robotStructureCache = robapp.Project.Structure.CreateCache();
-        //    return robotStructureCache.EnsureNodeExist(coords.X, coords.Y, 0);
-        //}
-
-        private void chart1_Click(object sender, EventArgs e)
+        void PrintErrorMessage(Exception E)
         {
-
+            textBox2.AppendText(Environment.NewLine + E.ToString());
         }
 
-        private void label1_Click(object sender, EventArgs e)
-        {
 
-        }
-
+        ///CHANGE THIS METHOD TO GET ALL NODES AFTER COPYING AND THEN RECORD THEIR NUMBEERS.
+        ///Then we can use a hashtable to just find the value straight away, no need for all of this checking.
         public int DoesNodeExistAtXY(Vector2 coords, bool returnNodeNumber)
         {
+
+            //What is this doing?
+
+            //Find every call of robapp and remove it where possible
             RobotStructureCache robotStructureCache = robapp.Project.Structure.CreateCache();
             int i = robotStructureCache.EnsureNodeExist(coords.X, coords.Y, 0);
             try
@@ -1134,7 +1202,7 @@ namespace Column_Sort
             {
                 
             }
-            return 0;
+            return -1;
         }
         #region old code
         /*
