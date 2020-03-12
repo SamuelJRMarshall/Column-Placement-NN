@@ -43,14 +43,14 @@
     </dependentAssembly>
   </dependency>
   <dependency>
-    <dependentAssembly dependencyType="install" allowDelayedBinding="true" codebase="Column Sort.exe" size="74240">
+    <dependentAssembly dependencyType="install" allowDelayedBinding="true" codebase="Column Sort.exe" size="77312">
       <assemblyIdentity name="Column Sort" version="1.0.0.0" language="neutral" processorArchitecture="amd64" />
       <hash>
         <dsig:Transforms>
           <dsig:Transform Algorithm="urn:schemas-microsoft-com:HashTransforms.Identity" />
         </dsig:Transforms>
         <dsig:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha256" />
-        <dsig:DigestValue>WXv6o73iFS3VIfJFBxx9ebccpkq/kYujd8N/tUHdQd8=</dsig:DigestValue>
+        <dsig:DigestValue>3Xruu2Gg4b3jjCucctHB197UcIeIyQOFLVZAkG24gAE=</dsig:DigestValue>
       </hash>
     </dependentAssembly>
   </dependency>

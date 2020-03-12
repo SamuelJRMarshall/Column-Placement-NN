@@ -13,4 +13,7 @@
   <PropertyGroup>
     <EnableSecurityDebugging>false</EnableSecurityDebugging>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|AnyCPU'">
+    <StartWorkingDirectory>C:\Users\Sam\Documents\RevitUtilities-master\RevitUtilities-master\Column Sort - Current\Column Sort\bin\Debug\</StartWorkingDirectory>
+  </PropertyGroup>
 </Project>

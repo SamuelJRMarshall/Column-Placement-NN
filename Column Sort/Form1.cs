@@ -18,6 +18,8 @@ using static Tensorflow.Binding;
 using System.Numerics;
 using System.IO;
 using System.Reflection;
+using System.Diagnostics;
+using System.Threading;
 
 namespace Column_Sort
 {
@@ -26,16 +28,20 @@ namespace Column_Sort
     {
         public RobotApplication robapp;
         private bool[,] panels;
-        private int sizeX = 8 , sizeY = 8;
+        private int sizeX = 8, sizeY = 8;
         //private int numOfColumns;
         public double DeflectionThreshold = -5.65; //sqrt 2 *1000/ 250
-        public double ColumnFactor = 50;
+        public double ColumnFactor = 10;
 
         int lastNode = 0;
         int lastObject = 0;
         int numOfTiles;
-        DateTime startTime;
+        DateTime StartTime;
         HashSet<int> AllNodesInModel;
+        Dictionary<Vector2, int> NodeLocationsAndNumbersDict;
+        int runs = 0;
+        string columnSection = "250x250_Column";
+        string panelSection = "TH20_C20";
 
         private Child PassdownChild;
         public Form1()
@@ -54,7 +60,7 @@ namespace Column_Sort
             textBox1.ScrollBars = System.Windows.Forms.ScrollBars.Vertical;
         }
 
-        
+
 
         private void button1_Click(object sender, EventArgs e)
         {
@@ -64,24 +70,31 @@ namespace Column_Sort
                 robapp = new RobotApplication();
                 robapp.Interactive = 0;
                 robapp.UserControl = false;
+                int samples = int.Parse(textBox3.Text.ToString());
+                int gens = int.Parse(textBox4.Text.ToString());
 
-                //LoadData();
+                if (!checkBox1.Checked)
+                {
+                    LoadData();
+                }
+
                 if (PassdownChild != null)
                 {
                     textBox1.Text = $"Gen: {PassdownChild.Gen}, start.";
                 }
 
-                startTime = DateTime.Now;
-                double timer = 60 * 0.5;
-
-                while (timer > 0)
+                StartTime = DateTime.Now;
+                //double timer = 60 * 10;
+                do
                 {
-                    InternalTest(3);
-                    timer -= (DateTime.Now - startTime).TotalSeconds;
-                    textBox1.AppendText(timer.ToString() + Environment.NewLine);
-                    startTime = DateTime.Now;
-                }
-                
+                    InternalTest(samples);
+                    textBox1.AppendText($"Gen: {PassdownChild.Gen}, next.");
+                    //timer -= (DateTime.Now - StartTime).TotalSeconds;
+                    //textBox1.AppendText(timer.ToString() + Environment.NewLine);
+                    //StartTime = DateTime.Now;
+                    runs++;
+                } while ((PassdownChild.Gen <= gens));
+
             }
             catch (Exception E)
             {
@@ -109,7 +122,7 @@ namespace Column_Sort
             }
             catch (Exception E)
             {
-               PrintErrorMessage(E);
+                PrintErrorMessage(E);
             }
             finally
             {
@@ -118,95 +131,30 @@ namespace Column_Sort
 
         }
 
-        void Run(int samples, int numOfTiles)
+        private void button3_Click(object sender, EventArgs e)
         {
-            DateTime startTime = DateTime.Now;
-            //textBox1.AppendText($"Start: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
-
-            DeleteAll();
-            //textBox1.AppendText($"Delete: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
-
-            //Create a floor plan
-            List<Vector2> nodeLocations = GenerateNumofFloorTiles(numOfTiles);
-            //textBox1.AppendText($"Generate Tiles: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
-
-            //Copy the plan
-            int tiles = samples;
-
-            CopyGeneratedTiles(tiles - 1);
-            //textBox1.AppendText($"Copy Tiles: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
-
-            //Analyse the samples
-            double[] inputs = GetAndDisplayNodeLocationsOnGraph();
-            //textBox1.AppendText($"Get nodes: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
-
-            SetTopNode();
-            //textBox1.AppendText($"Set Top node: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
-
-            //Create NN
-            Child[] children = new Child[tiles * tiles];
-            int k = 0;
-            for (int i = 0; i < tiles; i++)
+            try
             {
-                for (int j = 0; j < tiles; j++)
-                {
-                    if (PassdownChild == null)
-                    {
-                        //children[k] = new Child(k, new Vector2(15 * i, 15 * j), true, this);
-                        textBox1.AppendText($"Create child new {k}: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
-
-                    }
-                    else
-                    {
-                        //children[k] = new Child(k, new Vector2(15 * i, 15 * j), false, this, PassdownChild.weights, PassdownChild.bias);
-                        textBox1.AppendText($"Create child from data {k}: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
-
-                    }
-
-                    k += 1;
-                }
+                robapp = new RobotApplication();
+                Screenshot(10, new Vector2(10, 10));
             }
-
-
-            //Place Columns
-            foreach (var child in children)
+            catch (Exception E)
             {
-                child.PlaceColumns(child.GenerateValuesFromInput(inputs));
-                //textBox1.AppendText($"Place columsn for child {child.Id}: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
-
+                PrintErrorMessage(E);
             }
-
-            Calculate();
-            //textBox1.AppendText($"Calculate : {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
-
-            //Get Deflections
-            //Score output
-            foreach (var child in children)
+            finally
             {
-                child.Score = GetResults(nodeLocations, child.Offset);
-                //textBox1.AppendText($"Get results for child {child.Id}: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
-
+                robapp = null;
             }
-
-            List<Child> orderedChildren = children.OrderBy(o => o.Score).ToList();
-
-            //foreach (var child in orderedChildren)
-            //{
-            //    textBox1.AppendText(child.Score.ToString() + Environment.NewLine);
-            //}
-
-
-            PassdownChild = orderedChildren[0];
-            textBox1.AppendText("Best: " + PassdownChild.Score.ToString() + Environment.NewLine);
-
-            textBox1.AppendText($"Done: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
         }
+
+        
 
         void InternalTest(int samples)
         {
             DateTime startTime = DateTime.Now;
 
-            DeleteAll();
+            DeleteAll(runs);
 
             //Create a floor plan
 
@@ -224,8 +172,7 @@ namespace Column_Sort
             double[] inputs = GetAndDisplayNodeLocationsOnGraph();
 
             SetTopNode();
-            textBox1.AppendText($"Set Top node: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
-
+            NodeLocationsAndNumbersDict = NodeLocationsAndNumbers(nodeLocations, tiles);
             AllNodesInModel = GetAllNodes();
 
             //Create NN
@@ -250,7 +197,7 @@ namespace Column_Sort
 
             Calculate();
 
-            
+
 
             k = 0;
             for (int i = 0; i < tiles; i++)
@@ -269,28 +216,59 @@ namespace Column_Sort
             {
                 scoresList.Add(item.Score);
             }
-            
+
             PassdownChild = orderedChildren[0];
 
-            SaveScoresToTextFile(PassdownChild.Gen, scoresList);
-
-            SaveData(PassdownChild);
+            SaveScoresToTextFile(PassdownChild.Gen, scoresList, numOfTiles, PassdownChild.NumberOfColumns);
 
             PassdownChild.Gen += 1;
+            textBox1.AppendText($"Gen: {PassdownChild.Gen - 1}, runtime: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
 
         }
 
-        void SaveScoresToTextFile(int gen, List<double> scores)
+        private void CreateMaterialsColumnsAndPanels()
         {
-            string FileName = $"{DateTime.Now.ToString()} , Gen {gen.ToString()}.txt";
+            //Create a 250x250 Column
+            //Apply C20 material
+            //Create a 40mm Panel
+            //Apply C20 material
+
+            var columnSectionLabel = robapp.Project.Structure.Labels.Create(IRobotLabelType.I_LT_BAR_SECTION, columnSection);
+            RobotBarSectionData robotBarSectionData = columnSectionLabel.Data;
+            robotBarSectionData.ShapeType = IRobotBarSectionShapeType.I_BSST_CONCR_COL_R;
+            robotBarSectionData.MaterialName = "C15";
+            robotBarSectionData.Concrete.SetValue(IRobotBarSectionConcreteDataValue.I_BSCDV_COL_B, 0.25);
+            robotBarSectionData.Concrete.SetValue(IRobotBarSectionConcreteDataValue.I_BSCDV_COL_H, 0.25);
+
+            robotBarSectionData.SetValue(IRobotBarSectionDataValue.I_BSDV_BF, 1);
+            robotBarSectionData.SetValue(IRobotBarSectionDataValue.I_BSDV_D, 1);
+            robotBarSectionData.CalcNonstdGeometry();
+            robapp.Project.Structure.Labels.Store(columnSectionLabel);
+
+
+            var panelSectionLabel = robapp.Project.Structure.Labels.Create(IRobotLabelType.I_LT_PANEL_THICKNESS, panelSection);
+            RobotThicknessData robotPanelSectionData = panelSectionLabel.Data;
+            robotPanelSectionData.ThicknessType = IRobotThicknessType.I_TT_HOMOGENEOUS;
+            robotPanelSectionData.MaterialName = "C15";
+            IRobotThicknessHomoData robotThicknessHomoData = robotPanelSectionData.Data;
+            robotThicknessHomoData.ThickConst = 0.04;
+            robapp.Project.Structure.Labels.Store(panelSectionLabel);
+        }
+
+        void SaveScoresToTextFile(int gen, List<double> scores, int tiles, int columns)
+        {
+            string FileName = $"{DateTime.Now.ToString()} , Gen {gen.ToString("0000")}.txt";
             FileName = FileName.Replace(":", "-");
             FileName = FileName.Replace("/", "-");
 
             var currentDirectory = Path.GetDirectoryName(Assembly.GetCallingAssembly().Location);
             currentDirectory = currentDirectory.Substring(0, currentDirectory.Length - 22) + @"\Export\";
 
-            string data = gen.ToString() + "," + scores.Average().ToString("G17") + "," + StandardDeviation(scores).ToString("G17");
-
+            string data = gen.ToString() + "," + scores.Average().ToString("G17") + "," + StandardDeviation(scores).ToString("G17") + "," + tiles.ToString() + "," + columns.ToString();
+            foreach (var score in scores)
+            {
+                data += "," + score.ToString("G17");
+            }
             File.WriteAllText(currentDirectory + FileName, data);
         }
 
@@ -321,6 +299,8 @@ namespace Column_Sort
         void Screenshot(int gen, Vector2 bestLocation)
         {
             //Setup wide angle view
+
+            robapp.UserControl = true;
             robapp.Interactive = 1;
             robapp.Visible = 1;
             robapp.Window.Activate();
@@ -347,14 +327,14 @@ namespace Column_Sort
             robotView.MakeScreenCapture(robotViewScreenCaptureParams);
             robapp.Project.PrintEngine.AddScToReport(screenShotName);
 
-            robotView.SetZoom(bestLocation.X - 1, bestLocation.Y + 11, bestLocation.X +11, bestLocation.Y -1);
+            robotView.SetZoom(bestLocation.X - 1, bestLocation.Y + 11, bestLocation.X + 11, bestLocation.Y - 1);
             robapp.Project.ViewMngr.Refresh();
             screenShotName = $"{DateTime.Now.ToString()}, Gen {gen}, Best";
             robotViewScreenCaptureParams.Name = screenShotName;
             robotView.MakeScreenCapture(robotViewScreenCaptureParams);
             robapp.Project.PrintEngine.AddScToReport(screenShotName);
-            
-            string FileName = $"{DateTime.Now.ToString()} , Gen {gen.ToString()}.rtf";
+
+            string FileName = $"{DateTime.Now.ToString()} , Gen {gen.ToString("0000")}.rtf";
             FileName = FileName.Replace(":", "-");
             FileName = FileName.Replace("/", "-");
 
@@ -362,10 +342,12 @@ namespace Column_Sort
             currentDirectory = currentDirectory.Substring(0, currentDirectory.Length - 22) + @"\Export\";
 
             robapp.Project.PrintEngine.SaveReportToFile(currentDirectory + FileName, IRobotOutputFileFormat.I_OFF_RTF_JPEG);
+
+            robapp.UserControl = false;
             robapp.Interactive = 0;
         }
 
-
+        //TODO why does this call the does node exist method so much??
         double GetResults(List<Vector2> nodeLocations, Vector2 offset, int numOfColumns = 0)
         {
             HashSet<int> existingNodes = new HashSet<int>();
@@ -375,7 +357,8 @@ namespace Column_Sort
                 {
                     for (int j = 0; j < 3; j++)
                     {
-                        int num = DoesNodeExistAtXY(node + offset, true);
+                        Vector2 nodeCoords = new Vector2(node.X + offset.X + i, node.Y + offset.Y + j);
+                        int num = DoesNodeExistAtXY(nodeCoords, true);
                         existingNodes.Add(num);
                     }
                 }
@@ -396,7 +379,7 @@ namespace Column_Sort
 
                 highestDeflectionZ = Math.Min(highestDeflectionZ, val);
             }
-            return -((deflectionScore + highestDeflectionZ -(numOfColumns * ColumnFactor))/ numOfTiles);
+            return -((deflectionScore + highestDeflectionZ - (numOfColumns * ColumnFactor)));
         }
 
         /*
@@ -449,14 +432,14 @@ namespace Column_Sort
 
             using (StreamWriter writetext = new StreamWriter("data.txt"))
             {
-                
+
                 for (int i = 0; i < 8; i++)
                 {
                     for (int j = 0; j < 100; j++)
                     {
                         for (int k = 0; k < 100; k++)
                         {
-                            writetext.Write(bestChild.weights[i, j, k].ToString("G17") +"\n");
+                            writetext.Write(bestChild.weights[i, j, k].ToString("G17") + "\n");
                         }
                     }
                 }
@@ -537,7 +520,7 @@ namespace Column_Sort
             int[] directionsX = { 0, 2, 0, -2 };
             int[] directionsY = { 2, 0, -2, 0 };
 
-            while (ContainsCoordinates(new Vector2(j,i)))
+            while (ContainsCoordinates(new Vector2(j, i)))
             {
                 if (panels[j, i] == false)
                 {
@@ -545,7 +528,7 @@ namespace Column_Sort
                     panels[j, i] = true;
                     //textBox1.AppendText($"{j},{i} created {Environment.NewLine}");
                 }
-                
+
                 int rand = rnd.Next(0, 3);
                 i += directionsX[rand];
                 j += directionsY[rand];
@@ -564,11 +547,11 @@ namespace Column_Sort
             Vector2 panelCoords = new Vector2(rnd.Next(0, sizeX), rnd.Next(0, sizeY));
             //int i = ;
             //int j =;
-            
+
             //only movement in the cardinal directions is allowed
             //int[] directionsX = { 0, 2, 0, -2 };
             //int[] directionsY = { 2, 0, -2, 0 };
-            Vector2[] directions = 
+            Vector2[] directions =
                 {
                     new Vector2(0, 2),
                     new Vector2(2, 0),
@@ -641,7 +624,7 @@ namespace Column_Sort
 
 
                     //If a valid coordinate cannot be found stop running
-                    if (directionRemoval.Count <= 0){
+                    if (directionRemoval.Count <= 0) {
                         return CreatedPanels;
                     }
                 }
@@ -657,7 +640,7 @@ namespace Column_Sort
             {
                 for (int l = 0; l < 2; l++)
                 {
-                    CreatePanelAtPoint(coords + new Vector2(m,l));
+                    CreatePanelAtPoint(coords + new Vector2(m, l));
                 }
             }
         }
@@ -716,7 +699,7 @@ namespace Column_Sort
             int[] offsetCount = { 0, 1, 3, 2 };
             for (int i = 0; i < 4; i++)
             {
-                robotNumbersArray.Set(i+1, totalnodes + offsetCount[i]);
+                robotNumbersArray.Set(i + 1, totalnodes + offsetCount[i]);
             }
 
             //Create finite element
@@ -727,8 +710,7 @@ namespace Column_Sort
             int totalObjects = robapp.Project.Structure.Objects.GetAll().Count + 1;
             robapp.Project.Structure.Objects.CreateOnFiniteElems(totalFE.ToString(), totalObjects);
             IRobotObjObject panel = robapp.Project.Structure.Objects.Get(totalObjects) as IRobotObjObject;
-            panel.SetLabel(IRobotLabelType.I_LT_PANEL_THICKNESS, "TH10");
-            panel.SetLabel(IRobotLabelType.I_LT_MATERIAL, "C15");
+            panel.SetLabel(IRobotLabelType.I_LT_PANEL_THICKNESS, panelSection);
             panel.SetLabel(IRobotLabelType.I_LT_PANEL_CALC_MODEL, "Shell");
         }
 
@@ -746,9 +728,9 @@ namespace Column_Sort
             //};
 
             //this.chart1.Series.Add(series1);
-            
+
             //textBox1.AppendText("Method Running" + Environment.NewLine);
-                
+
 
             double[] nodes = new double[100];
             int count = 0;
@@ -758,7 +740,7 @@ namespace Column_Sort
                 for (int j = 0; j < 10; j++)
                 {
 
-                    nodes[count] = DoesNodeExistAtXY(new Vector2(j,i), false);
+                    nodes[count] = DoesNodeExistAtXY(new Vector2(j, i), false);
                     bool nodeReal = nodes[count] != 0;
                     if (nodeReal)
                     {
@@ -772,25 +754,63 @@ namespace Column_Sort
             //chart1.Invalidate();
 
             return nodes;
-            
+
         }
 
-        void DeleteAll()
+        void DeleteAll(int i)
         {
-            //RobotSelection robotSelection = robapp.Project.Structure.Selections.Get(IRobotObjectType.I_OT_PANEL);
-            //robotSelection.FromText("all");
-            //robapp.Project.Structure.Objects.DeleteMany(robotSelection);
-            //robotSelection = robapp.Project.Structure.Selections.Get(IRobotObjectType.I_OT_BAR);
-            //robotSelection.FromText("all");
-            //robapp.Project.Structure.Bars.DeleteMany(robotSelection);
-            //robotSelection = robapp.Project.Structure.Selections.Get(IRobotObjectType.I_OT_NODE);
-            //robotSelection.FromText("all");
-            //robapp.Project.Structure.Nodes.DeleteMany(robotSelection);
 
-            robapp.Project.Close();
+            if (i % 25 == 0)
+            {
+                if (PassdownChild != null)
+                {
+                    SaveData(PassdownChild);
+
+
+                    //PressEscape();
+
+
+                    //string FileName = $"{DateTime.Now.ToString()} , Gen {PassdownChild.Gen.ToString("0000")}.rtd";
+                    //FileName = FileName.Replace(":", "-");
+                    //FileName = FileName.Replace("/", "-");
+                    //robapp.Project.SaveAs(FileName);
+                    
+                }
+
+
+
+                robapp.Quit(IRobotQuitOption.I_QO_DISCARD_CHANGES);
+                Process.Start(@"C:\Program Files\Autodesk\Autodesk Robot Structural Analysis Professional 2019\System\Exe\robot.EXE");
+                Thread.Sleep(8000);
+
+                robapp = new RobotApplication();
+                robapp.Interactive = 0;
+                robapp.UserControl = false;
+                CreateMaterialsColumnsAndPanels();
+
+
+            }
             robapp.Project.New(IRobotProjectType.I_PT_BUILDING);
 
+
         }
+
+        //void PressEscape()
+        //{
+        //    this.WindowState = FormWindowState.Maximized;
+
+        //    Process[] processes = Process.GetProcesses();
+
+        //    foreach (Process proc in processes)
+        //    {
+        //        textBox1.AppendText(proc.MainWindowTitle + Environment.NewLine);
+        //        PostMessage(proc.MainWindowHandle, WM_KEYDOWN, VK_F5, 0);
+        //    }
+
+            
+            
+        //} 
+    
 
         public void UpdateMeshesForCorrectCalculationSettings()
         {
@@ -905,6 +925,11 @@ namespace Column_Sort
         Child ConstructNN(int id, double[] inputs, Vector2 offset, Child previousBest)
         {
             Child NN = new Child(id, offset, previousBest.Gen);
+            int gen = previousBest.Gen;
+            if (gen > 100)
+            {
+                gen = 100;
+            }
             Random rnd = new Random();
             double val = 0;
 
@@ -914,11 +939,11 @@ namespace Column_Sort
                 {
                     for (int k = 0; k < 100; k++)
                     {
-                        NN.weights[i, j, k] = previousBest.weights[i, j, k] + ((rnd.NextDouble() * 2.0) - 1.0) * 0.00001;
+                        NN.weights[i, j, k] = previousBest.weights[i, j, k] + ((rnd.NextDouble() * 2.0) - 1.0) * 0.001*(1/gen);
                     }
                     //textBox1.AppendText($"weights:{i}{j}{1} is {weights[i, j, 1]}{Environment.NewLine}");
 
-                    NN.bias[i, j] = previousBest.bias[i, j] + ((rnd.NextDouble() * 2.0) - 1.0) * 0.1;
+                    NN.bias[i, j] = previousBest.bias[i, j] + ((rnd.NextDouble() * 2.0) - 1.0) * 1 * (1 /gen);
                     //textBox1.AppendText($"bias:{i}{j} is {bias[i, j]}{Environment.NewLine}");
 
                 }
@@ -987,13 +1012,21 @@ namespace Column_Sort
         public int CreateColumn(Vector2 coords)
         {
 
-            textBox1.AppendText($"Start: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
+            //textBox1.AppendText($"Start: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
             int topnode = 0;
             int bottomnode = 0;
 
             //Does the top node exist?
-            topnode = DoesNodeExistAtXY(coords, true);
-            textBox1.AppendText($"Top Node: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
+            if (NodeLocationsAndNumbersDict.ContainsKey(coords))
+            {
+                NodeLocationsAndNumbersDict.TryGetValue(coords, out topnode);
+            }
+            else
+            {
+                topnode = -1;
+            }
+
+            //textBox1.AppendText($"Top Node: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
 
             if (topnode >= 0)
             {
@@ -1003,17 +1036,17 @@ namespace Column_Sort
             else
             {
                 //If topnode is 0 then it doesnt exist
-                textBox1.AppendText($"Return: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
+                //textBox1.AppendText($"Return: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
 
                 return 2;
             }
-            textBox1.AppendText($"Check bottom node: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
+            //textBox1.AppendText($"Check bottom node: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
 
             while (AllNodesInModel.Contains(bottomnode))
             {
                 bottomnode += 1;
             }
-            textBox1.AppendText($"BottomNode: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
+            //textBox1.AppendText($"BottomNode: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
 
             lastNode = Math.Max(lastNode, bottomnode);
 
@@ -1021,14 +1054,13 @@ namespace Column_Sort
             robapp.Project.Structure.Nodes.Create(topnode, coords.X, coords.Y, 0);
             robapp.Project.Structure.Nodes.Create(bottomnode, coords.X, coords.Y, -3);
             robapp.Project.Structure.Nodes.Get(bottomnode).SetLabel(IRobotLabelType.I_LT_SUPPORT, "Fixed");
-            textBox1.AppendText($"Create nodes: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
+            //textBox1.AppendText($"Create nodes: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
 
 
             int totalBars = lastNode + 1;
             robapp.Project.Structure.Bars.Create(totalBars, topnode, bottomnode);
-            robapp.Project.Structure.Bars.Get(totalBars).SetLabel(IRobotLabelType.I_LT_BAR_SECTION, "col1");
-            robapp.Project.Structure.Bars.Get(totalBars).SetLabel(IRobotLabelType.I_LT_MEMBER_TYPE, "Column");
-            textBox1.AppendText($"Create bar: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
+            robapp.Project.Structure.Bars.Get(totalBars).SetLabel(IRobotLabelType.I_LT_BAR_SECTION, columnSection);
+            //textBox1.AppendText($"Create bar: {(DateTime.Now - startTime).TotalSeconds}{Environment.NewLine}");
 
             return 1;
         }
@@ -1171,9 +1203,41 @@ namespace Column_Sort
             textBox2.AppendText(Environment.NewLine + E.ToString());
         }
 
+        Dictionary<Vector2, int> NodeLocationsAndNumbers(List<Vector2> coords, int tiles)
+        {
+            var nodeLocationsAndNumbers = new Dictionary<Vector2, int>();
 
-        ///CHANGE THIS METHOD TO GET ALL NODES AFTER COPYING AND THEN RECORD THEIR NUMBEERS.
-        ///Then we can use a hashtable to just find the value straight away, no need for all of this checking.
+            RobotStructureCache robotStructureCache = robapp.Project.Structure.CreateCache();
+            foreach (var coord in coords)
+            {
+                for (int i = 0; i < tiles; i++)
+                {
+                    for (int j = 0; j < tiles; j++)
+                    {
+                        for (int k = 0; k < 3; k++)
+                        {
+                            for (int l = 0; l < 3; l++)
+                            {
+                                var nodeLocation = new Vector2(coord.X + 15 * i + k, coord.Y + 15 * j + l);
+                                int nodeNum = robotStructureCache.EnsureNodeExist(nodeLocation.X, nodeLocation.Y, 0);
+                                if (nodeNum > -1)
+                                {
+                                    if (nodeLocationsAndNumbers.ContainsKey(nodeLocation))
+                                    {
+                                        break;
+                                    }
+                                    nodeLocationsAndNumbers.Add(nodeLocation, nodeNum);
+                                }
+                            }
+                        }
+                    }
+                }
+                
+            }
+
+            return nodeLocationsAndNumbers;
+        }
+
         public int DoesNodeExistAtXY(Vector2 coords, bool returnNodeNumber)
         {
 
@@ -1204,6 +1268,8 @@ namespace Column_Sort
             }
             return -1;
         }
+
+
         #region old code
         /*
        
